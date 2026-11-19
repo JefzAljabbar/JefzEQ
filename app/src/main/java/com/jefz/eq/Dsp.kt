@@ -3,6 +3,7 @@ package com.jefz.eq
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
+import kotlin.math.ln
 import kotlin.math.log10
 import kotlin.math.pow
 import kotlin.math.sin
@@ -11,7 +12,7 @@ import kotlin.math.sqrt
 /** RBJ biquad magnitude response (dB). Used for UI curve and to feed the system EQ. */
 object Dsp {
     private const val FS = 48000.0
-    const val MIN_DB = -30.0
+    const val MIN_DB = -60.0
     const val MAX_DB = 24.0
 
     fun bandDb(b: Band, f: Double): Double {
@@ -76,8 +77,37 @@ object Dsp {
         }
     }
 
+    private val LO = doubleArrayOf(Double.NaN, 80.0, 250.0, 2000.0, 6000.0)
+    private val HI = doubleArrayOf(80.0, 250.0, 2000.0, 6000.0, Double.NaN)
+
+    private fun smooth(t: Double): Double {
+        val x = t.coerceIn(0.0, 1.0)
+        return x * x * (3 - 2 * x)
+    }
+
+    /** Knob percent (-100..100) to dB. -100% = -60 dB (mute). */
+    fun knobDb(p: Float): Double =
+        if (p >= 0f) p * 0.12 else -60.0 * (abs(p) / 100.0).pow(2.0)
+
+    private fun knobWeight(k: Int, f: Double): Double {
+        val x = ln(f.coerceAtLeast(1.0)) / ln(2.0)
+        val lo = if (LO[k].isNaN()) 1.0 else smooth((x - (ln(LO[k]) / ln(2.0) - 0.5)) / 1.0)
+        val hi = if (HI[k].isNaN()) 1.0 else 1.0 - smooth((x - (ln(HI[k]) / ln(2.0) - 0.5)) / 1.0)
+        return lo * hi
+    }
+
+    private fun knobsDb(knobs: List<Float>, f: Double): Double {
+        var sum = 0.0
+        for (k in 0 until 5) {
+            val v = knobs.getOrElse(k) { 0f }
+            if (v != 0f) sum += knobWeight(k, f) * knobDb(v)
+        }
+        return sum
+    }
+
     /** Combined response of one channel (L or R) at the given frequencies, in dB. */
     fun curve(s: EqState, ch: Chan, freqs: DoubleArray): DoubleArray {
+        val knobs = if (ch == Chan.R) s.knobsR else s.knobsL
         val active = s.bands.filter { it.on && (it.chan == Chan.LR || it.chan == ch) }
         return DoubleArray(freqs.size) { i ->
             var out = 0.0
@@ -91,7 +121,7 @@ object Dsp {
                 }
                 out = best
             }
-            out.coerceIn(MIN_DB, MAX_DB)
+            (out + knobsDb(knobs, freqs[i])).coerceIn(MIN_DB, MAX_DB)
         }
     }
 }

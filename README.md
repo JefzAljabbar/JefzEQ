@@ -1,4 +1,4 @@
-# JefzEQ — Tahap 1
+# JefzEQ — Tahap 2
 
 Build APK (tanpa Android Studio):
 1. Buat repo GitHub baru, upload isi folder ini (termasuk `.github`).

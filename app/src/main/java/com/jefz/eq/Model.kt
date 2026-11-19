@@ -12,6 +12,8 @@ enum class Chan(val label: String) { L("L"), R("R"), LR("L+R") }
 
 enum class EqMode(val label: String) { CASCADE("Cascade"), ENVELOPE("Envelope") }
 
+val KNOB_NAMES = listOf("Sub", "Bass", "Mid", "Treble", "High")
+
 data class Band(
     val id: Long,
     val type: BandType = BandType.PEAK,
@@ -22,10 +24,26 @@ data class Band(
     val on: Boolean = true
 )
 
+data class Comp(
+    val on: Boolean = false,
+    val threshold: Float = -24f, // dB
+    val ratio: Float = 3f,
+    val attack: Float = 10f,     // ms
+    val release: Float = 120f,   // ms
+    val makeup: Float = 0f       // dB
+)
+
 data class EqState(
     val power: Boolean = false,
     val mode: EqMode = EqMode.CASCADE,
-    val bands: List<Band> = defaultBands()
+    val bands: List<Band> = defaultBands(),
+    val knobsL: List<Float> = List(5) { 0f }, // -100..+100 %
+    val knobsR: List<Float> = List(5) { 0f },
+    val preamp: Float = 0f,   // dB, before EQ
+    val gain: Float = 0f,     // dB, output stage
+    val volume: Float = 100f, // %
+    val balance: Float = 0f,  // -100 (L) .. +100 (R)
+    val comp: Comp = Comp()
 )
 
 fun defaultBands(): List<Band> = List(24) { i ->

@@ -1,6 +1,7 @@
 package com.jefz.eq
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.size
@@ -28,6 +29,7 @@ fun Knob(
     value: Float, min: Float, max: Float,
     label: String, text: String,
     log: Boolean = false,
+    reset: Float? = null,
     onChange: (Float) -> Unit
 ) {
     val curV by rememberUpdatedState(value)
@@ -39,6 +41,8 @@ fun Knob(
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Canvas(
             Modifier.size(56.dp).pointerInput(Unit) {
+                detectTapGestures(onDoubleTap = { reset?.let { curCb(it) } })
+            }.pointerInput(Unit) {
                 detectVerticalDragGestures { change, dy ->
                     change.consume()
                     curCb(fromN((toN(curV) - dy / 300f).coerceIn(0f, 1f)))

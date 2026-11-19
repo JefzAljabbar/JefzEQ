@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -27,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -44,15 +46,19 @@ import kotlin.math.pow
 private val CYAN = Color(0xFF00E5FF)
 private val ORANGE = Color(0xFFFF9100)
 private val CARD = Color(0xFF181D25)
+private val TABS = listOf("Bands", "Tone", "Master")
 
 private fun update(b: Band) = EqRepo.update { s ->
     s.copy(bands = s.bands.map { if (it.id == b.id) b else it })
 }
 
+private fun List<Float>.with(i: Int, v: Float): List<Float> = toMutableList().also { it[i] = v }
+
 private fun fmtFreq(f: Float) = if (f >= 1000f) "%.2f kHz".format(f / 1000f) else "%.0f Hz".format(f)
 
 @Composable
 fun EqScreen(state: EqState) {
+    var tab by remember { mutableIntStateOf(0) }
     Column(Modifier.fillMaxSize().background(Color(0xFF0E1116)).statusBarsPadding()) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
@@ -62,33 +68,49 @@ fun EqScreen(state: EqState) {
             Switch(checked = state.power, onCheckedChange = { p -> EqRepo.update { it.copy(power = p) } })
         }
         Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            EqMode.values().forEach { m ->
-                FilterChip(
-                    selected = state.mode == m,
-                    onClick = { EqRepo.update { it.copy(mode = m) } },
-                    label = { Text(m.label) }
-                )
+            TABS.forEachIndexed { i, t ->
+                FilterChip(selected = tab == i, onClick = { tab = i }, label = { Text(t) })
             }
         }
         ResponseGraph(state, Modifier.fillMaxWidth().height(170.dp).padding(16.dp))
-        LazyColumn(
-            Modifier.weight(1f),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            itemsIndexed(state.bands, key = { _, b -> b.id }) { i, b -> BandCard(i + 1, b) }
-            item {
-                Button(
-                    onClick = {
-                        EqRepo.update { s ->
-                            val id = (s.bands.maxOfOrNull { it.id } ?: -1L) + 1
-                            s.copy(bands = s.bands + Band(id = id))
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("+ Tambah Band") }
-                Spacer(Modifier.height(24.dp))
+        when (tab) {
+            0 -> BandsTab(state)
+            1 -> ToneTab(state)
+            else -> MasterTab(state)
+        }
+    }
+}
+
+@Composable
+fun BandsTab(state: EqState) {
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                EqMode.values().forEach { m ->
+                    FilterChip(
+                        selected = state.mode == m,
+                        onClick = { EqRepo.update { it.copy(mode = m) } },
+                        label = { Text(m.label) }
+                    )
+                }
             }
+        }
+        itemsIndexed(state.bands, key = { _, b -> b.id }) { i, b -> BandCard(i + 1, b) }
+        item {
+            Button(
+                onClick = {
+                    EqRepo.update { s ->
+                        val id = (s.bands.maxOfOrNull { it.id } ?: -1L) + 1
+                        s.copy(bands = s.bands + Band(id = id))
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("+ Tambah Band") }
+            Spacer(Modifier.height(24.dp))
         }
     }
 }
@@ -127,6 +149,98 @@ fun BandCard(index: Int, b: Band) {
                 Knob(b.q, 0.1f, 10f, "Q", "%.2f".format(b.q), log = true) { update(b.copy(q = it)) }
             }
         }
+    }
+}
+
+@Composable
+private fun Section(title: String, content: @Composable () -> Unit) {
+    Card(colors = CardDefaults.cardColors(containerColor = CARD), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(title, color = CYAN, fontSize = 14.sp)
+            content()
+        }
+    }
+}
+
+@Composable
+private fun KnobRow(vals: List<Float>, onChange: (Int, Float) -> Unit) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+        KNOB_NAMES.forEachIndexed { i, n ->
+            Knob(vals[i], -100f, 100f, n, "%+.0f%%".format(vals[i]), reset = 0f) { onChange(i, it) }
+        }
+    }
+}
+
+@Composable
+fun ToneTab(s: EqState) {
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        item {
+            Section("Tone — Channel L") {
+                KnobRow(s.knobsL) { i, v -> EqRepo.update { it.copy(knobsL = it.knobsL.with(i, v)) } }
+            }
+        }
+        item {
+            Section("Tone — Channel R") {
+                KnobRow(s.knobsR) { i, v -> EqRepo.update { it.copy(knobsR = it.knobsR.with(i, v)) } }
+            }
+        }
+        item {
+            Text("Geser knob ke atas/bawah. Double-tap = reset ke 0. -100% = mati.",
+                color = Color(0xFF8A94A3), fontSize = 11.sp)
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
+@Composable
+private fun LSlider(label: String, value: Float, range: ClosedFloatingPointRange<Float>, text: String, onChange: (Float) -> Unit) {
+    Column {
+        Text("$label  $text", color = Color.White, fontSize = 12.sp)
+        Slider(value = value, onValueChange = onChange, valueRange = range)
+    }
+}
+
+@Composable
+fun MasterTab(s: EqState) {
+    val c = s.comp
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        item {
+            Section("Level") {
+                LSlider("PreAmp", s.preamp, -12f..12f, "%+.1f dB".format(s.preamp)) { v -> EqRepo.update { it.copy(preamp = v) } }
+                LSlider("Gain", s.gain, -12f..12f, "%+.1f dB".format(s.gain)) { v -> EqRepo.update { it.copy(gain = v) } }
+                LSlider("Volume", s.volume, 0f..100f, "%.0f%%".format(s.volume)) { v -> EqRepo.update { it.copy(volume = v) } }
+                val bt = when {
+                    s.balance < -0.5f -> "L %.0f%%".format(-s.balance)
+                    s.balance > 0.5f -> "R %.0f%%".format(s.balance)
+                    else -> "Center"
+                }
+                LSlider("Balance", s.balance, -100f..100f, bt) { v -> EqRepo.update { it.copy(balance = v) } }
+            }
+        }
+        item {
+            Section("Compressor") {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("On / Off", color = Color.White, modifier = Modifier.weight(1f))
+                    Switch(checked = c.on, onCheckedChange = { v -> EqRepo.update { it.copy(comp = it.comp.copy(on = v)) } })
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    Knob(c.threshold, -60f, 0f, "Thresh", "%.0f dB".format(c.threshold)) { v -> EqRepo.update { it.copy(comp = it.comp.copy(threshold = v)) } }
+                    Knob(c.ratio, 1f, 20f, "Ratio", "%.1f:1".format(c.ratio)) { v -> EqRepo.update { it.copy(comp = it.comp.copy(ratio = v)) } }
+                    Knob(c.attack, 1f, 200f, "Attack", "%.0f ms".format(c.attack), log = true) { v -> EqRepo.update { it.copy(comp = it.comp.copy(attack = v)) } }
+                    Knob(c.release, 10f, 1000f, "Release", "%.0f ms".format(c.release), log = true) { v -> EqRepo.update { it.copy(comp = it.comp.copy(release = v)) } }
+                    Knob(c.makeup, 0f, 24f, "Makeup", "%.1f dB".format(c.makeup)) { v -> EqRepo.update { it.copy(comp = it.comp.copy(makeup = v)) } }
+                }
+            }
+        }
+        item { Spacer(Modifier.height(24.dp)) }
     }
 }
 
