@@ -14,7 +14,7 @@ import kotlin.math.sqrt
 object Dsp {
     private const val FS = 48000.0
     const val MIN_DB = -60.0
-    const val MAX_DB = 24.0
+    const val MAX_DB = 100.0 // sanity guard only; cascade sums are not limited in practice
 
     fun bandDb(b: Band, f: Double): Double {
         val f0 = b.freq.toDouble().coerceIn(10.0, 22000.0)

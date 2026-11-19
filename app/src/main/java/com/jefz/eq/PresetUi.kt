@@ -53,6 +53,7 @@ fun PresetTab(s: EqState, onExport: (String) -> Unit, onImport: () -> Unit) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = {
                         val ok = PresetStore.save(name, s)
+                        if (ok) EqRepo.update { it.copy(preset = PresetStore.clean(name), presetSig = sigOf(it)) }
                         Toast.makeText(ctx, if (ok) "Preset tersimpan" else "Isi nama preset", Toast.LENGTH_SHORT).show()
                     }) { Text("Simpan") }
                     OutlinedButton(onClick = onImport) { Text("Import") }
@@ -74,7 +75,9 @@ fun PresetTab(s: EqState, onExport: (String) -> Unit, onImport: () -> Unit) {
                     TextButton(onClick = {
                         val loaded = PresetStore.read(n)
                         if (loaded != null) {
-                            EqRepo.update { cur -> loaded.copy(power = cur.power, fxOn = cur.fxOn, fxPkg = cur.fxPkg) }
+                            EqRepo.update { cur ->
+                                loaded.copy(power = cur.power, fxOn = cur.fxOn, fxPkg = cur.fxPkg, preset = n, presetSig = sigOf(loaded))
+                            }
                             name = n
                             Toast.makeText(ctx, "Preset dimuat", Toast.LENGTH_SHORT).show()
                         } else {
@@ -82,7 +85,10 @@ fun PresetTab(s: EqState, onExport: (String) -> Unit, onImport: () -> Unit) {
                         }
                     }) { Text("Muat") }
                     TextButton(onClick = { onExport(n) }) { Text("Export") }
-                    TextButton(onClick = { PresetStore.delete(n) }) { Text("✕", color = Color(0xFFFF5252)) }
+                    TextButton(onClick = {
+                        PresetStore.delete(n)
+                        if (s.preset == n) EqRepo.update { it.copy(preset = "", presetSig = 0) }
+                    }) { Text("✕", color = Color(0xFFFF5252)) }
                 }
             }
         }

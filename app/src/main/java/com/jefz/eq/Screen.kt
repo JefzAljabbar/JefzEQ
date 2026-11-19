@@ -87,7 +87,10 @@ fun EqScreen(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("JefzEQ", fontSize = 22.sp, color = CYAN, modifier = Modifier.weight(1f))
+            Column(Modifier.weight(1f)) {
+                Text("JefzEQ", fontSize = 22.sp, color = CYAN)
+                Text("Preset: ${presetLabel(state)}", fontSize = 11.sp, color = Color(0xFF8A94A3), maxLines = 1)
+            }
             FilterChip(selected = Rta.on, onClick = { onRtaToggle(!Rta.on) }, label = { Text("RTA") })
             Spacer(Modifier.width(8.dp))
             Switch(checked = state.power, onCheckedChange = { p -> EqRepo.update { it.copy(power = p) } })

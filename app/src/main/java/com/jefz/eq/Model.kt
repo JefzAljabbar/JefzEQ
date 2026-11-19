@@ -64,8 +64,21 @@ data class EqState(
     val lvlL: Float = 0f,    // channel level dB (-60 = mute)
     val lvlR: Float = 0f,
     val fxOn: Boolean = false,                   // wet capture running (not persisted)
-    val fxPkg: String = "com.google.android.youtube"
+    val fxPkg: String = "com.google.android.youtube",
+    val preset: String = "",   // name of the last loaded/saved preset
+    val presetSig: Int = 0     // signature of the settings at that moment (to detect "diubah")
 )
 
 /** New installs / reset start with no bands. */
 fun defaultBands(): List<Band> = emptyList()
+
+/** Signature of everything a preset contains (power / capture / source app / preset label excluded). */
+fun sigOf(s: EqState): Int =
+    EqRepo.serialize(s.copy(power = false, fxOn = false, fxPkg = "", preset = "", presetSig = 0)).hashCode()
+
+/** Text for the active-preset info (header + status bar). */
+fun presetLabel(s: EqState): String = when {
+    s.preset.isEmpty() -> "—"
+    sigOf(s) == s.presetSig -> s.preset
+    else -> s.preset + " (diubah)"
+}

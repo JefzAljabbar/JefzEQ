@@ -11,8 +11,17 @@ android {
         applicationId = "com.jefz.eq"
         minSdk = 28
         targetSdk = 34
-        versionCode = 7
-        versionName = "0.7"
+        versionCode = 8
+        versionName = "0.8"
+    }
+    // Fixed signing key (app/jefz.keystore) so every new build installs OVER the old one without uninstalling.
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("jefz.keystore")
+            storePassword = "jefzeq2026"
+            keyAlias = "jefz"
+            keyPassword = "jefzeq2026"
+        }
     }
     buildTypes {
         release { isMinifyEnabled = false }

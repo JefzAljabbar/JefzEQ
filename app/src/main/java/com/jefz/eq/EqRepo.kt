@@ -50,6 +50,7 @@ object EqRepo {
             .put("vl", s.vocalL.toDouble()).put("vr", s.vocalR.toDouble())
             .put("ll", s.lvlL.toDouble()).put("lr", s.lvlR.toDouble())
             .put("pkg", s.fxPkg)
+            .put("pn", s.preset).put("ps", s.presetSig)
             .toString()
     }
 
@@ -136,7 +137,9 @@ object EqRepo {
             lvlL = o.optDouble("ll", 0.0).toFloat(),
             lvlR = o.optDouble("lr", 0.0).toFloat(),
             fxOn = false,
-            fxPkg = o.optString("pkg", "com.google.android.youtube")
+            fxPkg = o.optString("pkg", "com.google.android.youtube"),
+            preset = o.optString("pn", ""),
+            presetSig = o.optInt("ps", 0)
         )
     }
 }

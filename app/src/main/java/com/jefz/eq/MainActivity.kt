@@ -141,13 +141,12 @@ class MainActivity : ComponentActivity() {
             ) {
                 var unlocked by remember { mutableStateOf(LockStore.isUnlocked(this@MainActivity)) }
                 if (!unlocked) {
-                    PinScreen(onUnlocked = { unlocked = true })
+                    PasswordScreen(onUnlocked = { unlocked = true })
                 } else {
                     val state by EqRepo.state.collectAsState()
-                    LaunchedEffect(state.power) {
-                        val i = Intent(this@MainActivity, EqService::class.java)
-                        if (state.power) ContextCompat.startForegroundService(this@MainActivity, i)
-                        else stopService(i)
+                    // Service stays alive (also when EQ is Off) so the status-bar On/Off + volume controls work.
+                    LaunchedEffect(Unit) {
+                        ContextCompat.startForegroundService(this@MainActivity, Intent(this@MainActivity, EqService::class.java))
                     }
                     EqScreen(
                         state,

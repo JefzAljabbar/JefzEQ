@@ -53,6 +53,9 @@ fun RtaView(state: EqState, modifier: Modifier) {
     val freqs = remember(log) { DoubleArray(240) { freqAt(it / 239.0, log) } }
     val cl = remember(state, log) { Dsp.curve(state, Chan.L, freqs) }
     val cr = remember(state, log) { Dsp.curve(state, Chan.R, freqs) }
+    // EQ axis: +-20 dB normally, grows in 5 dB steps up to +-30 when the summed curve goes beyond +20.
+    val maxV = maxOf(cl.max(), cr.max())
+    val range = if (maxV <= 20.0) 20.0 else minOf(30.0, kotlin.math.ceil(maxV / 5.0) * 5.0)
     val paint = remember { android.graphics.Paint().apply { isAntiAlias = true } }
 
     Canvas(modifier.background(BG)) {
@@ -61,7 +64,7 @@ fun RtaView(state: EqState, modifier: Modifier) {
         val sp = Rta.frame
         val grid = Color(0xFF2A313B)
         fun yDb(db: Float) = h * (-(db.coerceIn(-100f, 0f)) / 100f)
-        fun yEq(db: Double) = (h / 2f - db.coerceIn(-24.0, 24.0) / 24.0 * h / 2f).toFloat()
+        fun yEq(db: Double) = (h / 2f - db.coerceIn(-range, range) / range * h / 2f).toFloat()
         fun x(f: Double) = (w * xOf(f, log)).toFloat()
         paint.textSize = 10.sp.toPx()
 
@@ -112,6 +115,16 @@ fun RtaView(state: EqState, modifier: Modifier) {
         }
 
         if (Rta.showCurve) {
+            val red = Color(0xFFFF5252)
+            val dash = PathEffect.dashPathEffect(floatArrayOf(6f, 6f))
+            // clipping zone above +20 dB
+            val clipY = yEq(20.0)
+            if (range > 20.0) drawRect(red.copy(alpha = 0.10f), Offset(0f, 0f), androidx.compose.ui.geometry.Size(w, clipY))
+            drawLine(red.copy(alpha = 0.85f), Offset(0f, clipY), Offset(w, clipY), 1.dp.toPx(), pathEffect = dash)
+            label("CLIP +20", w - 52.dp.toPx(), clipY + 11.dp.toPx(), red)
+            label("+%.0f".format(range), w - 24.dp.toPx(), 11.dp.toPx(), Color(0xFF8A94A3))
+            label("-%.0f".format(range), w - 24.dp.toPx(), h - 14.dp.toPx(), Color(0xFF8A94A3))
+            drawLine(Color.White.copy(alpha = 0.15f), Offset(0f, h / 2f), Offset(w, h / 2f), 1.dp.toPx())
             fun curve(c: DoubleArray, col: Color) {
                 val p = Path()
                 c.forEachIndexed { i, d ->
@@ -119,11 +132,24 @@ fun RtaView(state: EqState, modifier: Modifier) {
                     if (i == 0) p.moveTo(px, yEq(d)) else p.lineTo(px, yEq(d))
                 }
                 drawPath(p, col, style = Stroke(2.dp.toPx()))
+                var i = 0
+                while (i < c.size) {
+                    if (c[i] > 20.0) {
+                        val seg = Path()
+                        var j = i
+                        while (j < c.size && c[j] > 20.0) {
+                            val px = w * j / (c.size - 1)
+                            if (j == i) seg.moveTo(px, yEq(c[j])) else seg.lineTo(px, yEq(c[j]))
+                            j++
+                        }
+                        drawPath(seg, red, style = Stroke(2.5.dp.toPx()))
+                        i = j
+                    } else i++
+                }
             }
-            drawLine(Color.White.copy(alpha = 0.15f), Offset(0f, h / 2f), Offset(w, h / 2f), 1.dp.toPx())
             curve(cl, EQL)
             curve(cr, EQR)
-            val dash = PathEffect.dashPathEffect(floatArrayOf(6f, 6f))
+            if (maxV > 0.05) label("EQ max %+.1f dB".format(maxV), 6.dp.toPx(), 26.dp.toPx(), if (maxV > 20.0) red else Color(0xFF8A94A3))
             state.bands.filter { it.on && kotlin.math.abs(it.gain) > 0.05f }.forEach { b ->
                 val bx = x(b.freq.toDouble().coerceIn(20.0, 20000.0))
                 val col = when (b.chan) { Chan.L -> EQL; Chan.R -> EQR; else -> Color.White }

@@ -37,18 +37,19 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
-fun PinScreen(onUnlocked: () -> Unit) {
+fun PasswordScreen(onUnlocked: () -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var recovery by remember { mutableStateOf(false) }
     var input by remember { mutableStateOf("") }
     var msg by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
+    var show by remember { mutableStateOf(false) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { delay(500); now = System.currentTimeMillis() } }
     val remain = ((LockStore.lockedUntil(ctx) - now) / 1000).coerceAtLeast(0)
     val locked = remain > 0
-    val ready = if (recovery) input.count { it.isLetterOrDigit() } >= 16 else input.length == 6
+    val ready = if (recovery) input.count { it.isLetterOrDigit() } >= 16 else input.isNotEmpty()
 
     Column(
         Modifier.fillMaxSize().background(Color(0xFF0E1116)).statusBarsPadding().padding(24.dp),
@@ -57,23 +58,24 @@ fun PinScreen(onUnlocked: () -> Unit) {
     ) {
         Text("JefzEQ", fontSize = 28.sp, color = Color(0xFF00E5FF))
         Spacer(Modifier.height(24.dp))
-        Text(if (recovery) "Masukkan Kode Pemulihan" else "Masukkan PIN", color = Color.White)
+        Text(if (recovery) "Masukkan Kode Pemulihan" else "Masukkan Password", color = Color.White)
         Spacer(Modifier.height(12.dp))
         OutlinedTextField(
             value = input,
             onValueChange = { v ->
-                input = if (recovery) v.take(24) else v.filter { it.isDigit() }.take(6)
+                input = if (recovery) v.take(24) else v.take(64)
                 msg = ""
             },
             singleLine = true,
-            visualTransformation = if (recovery) VisualTransformation.None else PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = if (recovery) KeyboardType.Ascii else KeyboardType.NumberPassword),
+            visualTransformation = if (recovery || show) VisualTransformation.None else PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = if (recovery) KeyboardType.Ascii else KeyboardType.Password),
             enabled = !busy && !locked,
             modifier = Modifier.fillMaxWidth()
         )
         if (msg.isNotEmpty()) Text(msg, color = Color(0xFFFF5252), fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
         if (locked) Text("Terlalu banyak percobaan. Coba lagi dalam $remain detik.", color = Color(0xFFFFB74D), fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
-        Spacer(Modifier.height(16.dp))
+        if (!recovery) TextButton(onClick = { show = !show }, enabled = !busy) { Text(if (show) "Sembunyikan" else "Tampilkan") }
+        Spacer(Modifier.height(8.dp))
         Button(
             enabled = ready && !busy && !locked,
             onClick = {
@@ -81,7 +83,7 @@ fun PinScreen(onUnlocked: () -> Unit) {
                 val attempt = input
                 scope.launch {
                     val ok = withContext(Dispatchers.Default) {
-                        if (recovery) LockStore.checkRecovery(attempt) else LockStore.checkPin(attempt)
+                        if (recovery) LockStore.checkRecovery(attempt) else LockStore.checkPassword(attempt)
                     }
                     busy = false
                     if (ok) {
@@ -89,14 +91,14 @@ fun PinScreen(onUnlocked: () -> Unit) {
                         onUnlocked()
                     } else {
                         LockStore.registerFail(ctx)
-                        msg = if (recovery) "Kode pemulihan salah" else "PIN salah"
+                        msg = if (recovery) "Kode pemulihan salah" else "Password salah"
                         input = ""
                     }
                 }
             }
         ) { Text(if (busy) "Memeriksa…" else "Buka") }
         TextButton(onClick = { recovery = !recovery; input = ""; msg = "" }, enabled = !busy) {
-            Text(if (recovery) "Kembali ke PIN" else "Lupa PIN?")
+            Text(if (recovery) "Kembali ke Password" else "Lupa Password?")
         }
         if (recovery) {
             Text(

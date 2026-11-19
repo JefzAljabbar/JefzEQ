@@ -1,4 +1,4 @@
-# JefzEQ v0.7
+# JefzEQ v0.8
 
 Parametric stereo EQ (L/R terpisah), tone knobs, compressor, reverb/echo, RTA, generator tes.
 
@@ -29,4 +29,12 @@ Rekam audio (RTA + capture internal), notifikasi, layanan foreground, capture la
 ## Baru di v0.7
 - Tombol Reset di tiap bagian (per band, Bands, Tone, Vocal, Master, FX, Test, RTA) + Reset Semua (tab Preset).
 - Compressor per band (tombol "Compressor" di tiap band). Default band: kosong.
-- Kunci PIN saat pertama dibuka setelah install. Lupa PIN: pakai Kode Pemulihan.
+- Kunci Password saat pertama dibuka setelah install. Lupa password: pakai Kode Pemulihan.
+
+## Baru di v0.8
+- Update tanpa uninstall: APK kini ditandatangani dengan keystore tetap (`app/jefz.keystore`, ikut diupload ke repo). Build v0.8 ke atas bisa dipasang langsung di atas versi sebelumnya. (Pemasangan pertama dari v0.7 lama tetap butuh uninstall satu kali karena kunci tanda tangannya beda.)
+- Status bar (notifikasi): tombol On/Off, Vol -10 / Vol +10, dan info preset yang dipakai (tanda "diubah" bila sudah berbeda dari preset).
+- PIN diganti Password. Kode Pemulihan tidak berubah.
+- Mode Cascade tidak lagi dibatasi 24 dB: gain tiap band dijumlahkan (mis. +5 dB + +5 dB di 1 kHz = +10 dB).
+- RTA: sumbu EQ otomatis melebar sampai +-30 dB; garis merah putus-putus "CLIP +20" dan kurva memerah di atas +20 dB.
+- Nama preset aktif tampil di header aplikasi.
