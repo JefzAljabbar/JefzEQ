@@ -15,6 +15,9 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 
@@ -129,12 +132,6 @@ class MainActivity : ComponentActivity() {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         }
         setContent {
-            val state by EqRepo.state.collectAsState()
-            LaunchedEffect(state.power) {
-                val i = Intent(this@MainActivity, EqService::class.java)
-                if (state.power) ContextCompat.startForegroundService(this@MainActivity, i)
-                else stopService(i)
-            }
             MaterialTheme(
                 colorScheme = darkColorScheme(
                     primary = Color(0xFF00E5FF),
@@ -142,13 +139,24 @@ class MainActivity : ComponentActivity() {
                     surface = Color(0xFF181D25)
                 )
             ) {
-                EqScreen(
-                    state,
-                    onFxToggle = { setFx(it) },
-                    onRtaToggle = { setRta(it) },
-                    onExport = { exportPreset(it) },
-                    onImport = { importPreset() }
-                )
+                var unlocked by remember { mutableStateOf(LockStore.isUnlocked(this@MainActivity)) }
+                if (!unlocked) {
+                    PinScreen(onUnlocked = { unlocked = true })
+                } else {
+                    val state by EqRepo.state.collectAsState()
+                    LaunchedEffect(state.power) {
+                        val i = Intent(this@MainActivity, EqService::class.java)
+                        if (state.power) ContextCompat.startForegroundService(this@MainActivity, i)
+                        else stopService(i)
+                    }
+                    EqScreen(
+                        state,
+                        onFxToggle = { setFx(it) },
+                        onRtaToggle = { setRta(it) },
+                        onExport = { exportPreset(it) },
+                        onImport = { importPreset() }
+                    )
+                }
             }
         }
     }

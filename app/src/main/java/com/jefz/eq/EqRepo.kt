@@ -31,7 +31,7 @@ object EqRepo {
         s.bands.forEach {
             arr.put(JSONObject().put("id", it.id).put("type", it.type.name).put("chan", it.chan.name)
                 .put("freq", it.freq.toDouble()).put("gain", it.gain.toDouble())
-                .put("q", it.q.toDouble()).put("on", it.on))
+                .put("q", it.q.toDouble()).put("on", it.on).put("c", compJson(it.comp)))
         }
         val c = s.comp
         return JSONObject().put("power", s.power).put("mode", s.mode.name).put("bands", arr)
@@ -51,6 +51,23 @@ object EqRepo {
             .put("ll", s.lvlL.toDouble()).put("lr", s.lvlR.toDouble())
             .put("pkg", s.fxPkg)
             .toString()
+    }
+
+    private fun compJson(c: Comp) = JSONObject().put("on", c.on).put("th", c.threshold.toDouble())
+        .put("ratio", c.ratio.toDouble()).put("atk", c.attack.toDouble())
+        .put("rel", c.release.toDouble()).put("mk", c.makeup.toDouble())
+
+    private fun compParse(c: JSONObject?): Comp {
+        val d = Comp()
+        if (c == null) return d
+        return Comp(
+            on = c.optBoolean("on", d.on),
+            threshold = c.optDouble("th", d.threshold.toDouble()).toFloat(),
+            ratio = c.optDouble("ratio", d.ratio.toDouble()).toFloat(),
+            attack = c.optDouble("atk", d.attack.toDouble()).toFloat(),
+            release = c.optDouble("rel", d.release.toDouble()).toFloat(),
+            makeup = c.optDouble("mk", d.makeup.toDouble()).toFloat()
+        )
     }
 
     private fun bools(a: JSONArray?): List<Boolean> =
@@ -74,7 +91,8 @@ object EqRepo {
                 freq = b.getDouble("freq").toFloat(),
                 gain = b.getDouble("gain").toFloat(),
                 q = b.getDouble("q").toFloat(),
-                on = b.getBoolean("on")
+                on = b.getBoolean("on"),
+                comp = compParse(b.optJSONObject("c"))
             )
         }
         val d = Comp()

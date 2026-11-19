@@ -110,6 +110,10 @@ object Rta {
     var peakHold by mutableStateOf(true)
     var frame by mutableStateOf<Spec?>(null)
 
+    fun resetView() {
+        fft = 4096; log = true; showMic = true; showInt = true; showCurve = true; peakHold = true
+    }
+
     val micRing = SampleRing(16384)
     val intRing = SampleRing(16384)
     @Volatile var internalActive = false

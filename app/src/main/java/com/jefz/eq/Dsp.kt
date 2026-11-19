@@ -2,6 +2,7 @@ package com.jefz.eq
 
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.asinh
 import kotlin.math.cos
 import kotlin.math.ln
 import kotlin.math.log10
@@ -107,6 +108,23 @@ object Dsp {
             if (v != 0f) sum += knobWeight(k, f) * knobDb(v)
         }
         return sum
+    }
+
+    /** Approximate frequency region a band acts on (used for per-band compressor). */
+    fun region(b: Band): Pair<Double, Double> {
+        val f0 = b.freq.toDouble().coerceIn(30.0, 20000.0)
+        val lo: Double
+        val hi: Double
+        when (b.type) {
+            BandType.LOW_PASS, BandType.LOW_SHELF -> { lo = 30.0; hi = f0 }
+            BandType.HIGH_PASS, BandType.HIGH_SHELF -> { lo = f0; hi = 20000.0 }
+            else -> {
+                val q = b.q.toDouble().coerceIn(0.1, 20.0)
+                val bw = 2.0 / ln(2.0) * asinh(1.0 / (2.0 * q))
+                lo = f0 * 2.0.pow(-bw / 2); hi = f0 * 2.0.pow(bw / 2)
+            }
+        }
+        return lo.coerceIn(30.0, 19000.0) to hi.coerceIn(40.0, 20000.0)
     }
 
     /** Combined response of one channel (L or R) at the given frequencies, in dB. */

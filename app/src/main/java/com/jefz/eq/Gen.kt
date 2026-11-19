@@ -25,6 +25,9 @@ object Gen {
     var levelDb by mutableFloatStateOf(-30f)
     var chan by mutableStateOf(Chan.LR)
 
+    fun resetOutput() { levelDb = -30f; chan = Chan.LR }
+    fun resetTone() { freq = 1000f; wave = Wave.SINE }
+
     @Volatile private var running = false
     @Volatile private var muting = false
     private var thread: Thread? = null

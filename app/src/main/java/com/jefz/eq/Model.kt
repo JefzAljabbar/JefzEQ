@@ -21,7 +21,8 @@ data class Band(
     val freq: Float = 1000f,
     val gain: Float = 0f,
     val q: Float = 1f,
-    val on: Boolean = true
+    val on: Boolean = true,
+    val comp: Comp = Comp()
 )
 
 data class Comp(
@@ -66,7 +67,5 @@ data class EqState(
     val fxPkg: String = "com.google.android.youtube"
 )
 
-fun defaultBands(): List<Band> = List(24) { i ->
-    val f = 25.0 * (18000.0 / 25.0).pow(i / 23.0)
-    Band(id = i.toLong(), freq = f.roundToInt().toFloat(), q = 3f)
-}
+/** New installs / reset start with no bands. */
+fun defaultBands(): List<Band> = emptyList()

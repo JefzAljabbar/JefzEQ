@@ -128,13 +128,14 @@ private fun BottomTabs(selected: Int, onSelect: (Int) -> Unit) {
 
 @Composable
 fun BandsTab(state: EqState) {
+    var confirm by remember { mutableStateOf(false) }
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 EqMode.values().forEach { m ->
                     FilterChip(
                         selected = state.mode == m,
@@ -142,7 +143,14 @@ fun BandsTab(state: EqState) {
                         label = { Text(m.label) }
                     )
                 }
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = { confirm = true }) {
+                    Text("Reset Bands", fontSize = 12.sp, color = Color(0xFF8A94A3))
+                }
             }
+        }
+        if (state.bands.isEmpty()) {
+            item { Text("Belum ada band. Tekan + Tambah Band.", color = Color(0xFF8A94A3), fontSize = 13.sp) }
         }
         itemsIndexed(state.bands, key = { _, b -> b.id }) { i, b -> BandCard(i + 1, b) }
         item {
@@ -158,6 +166,20 @@ fun BandsTab(state: EqState) {
             Spacer(Modifier.height(24.dp))
         }
     }
+    if (confirm) {
+        AlertDialog(
+            onDismissRequest = { confirm = false },
+            title = { Text("Reset Bands?") },
+            text = { Text("Semua band dihapus dan mode kembali ke Cascade.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    EqRepo.update { it.copy(bands = emptyList(), mode = EqMode.CASCADE) }
+                    confirm = false
+                }) { Text("Reset") }
+            },
+            dismissButton = { TextButton(onClick = { confirm = false }) { Text("Batal") } }
+        )
+    }
 }
 
 @Composable
@@ -166,6 +188,9 @@ fun BandCard(index: Int, b: Band) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Band $index", color = Color.White, modifier = Modifier.weight(1f))
+                TextButton(onClick = {
+                    update(b.copy(type = BandType.PEAK, chan = Chan.LR, freq = 1000f, gain = 0f, q = 1f, on = true, comp = Comp()))
+                }) { Text("Reset", fontSize = 12.sp, color = Color(0xFF8A94A3)) }
                 Switch(checked = b.on, onCheckedChange = { update(b.copy(on = it)) })
                 TextButton(onClick = {
                     EqRepo.update { s -> s.copy(bands = s.bands.filter { it.id != b.id }) }
@@ -193,15 +218,43 @@ fun BandCard(index: Int, b: Band) {
                 Knob(b.freq, 20f, 20000f, "Freq", fmtFreq(b.freq), log = true) { update(b.copy(freq = it)) }
                 Knob(b.q, 0.1f, 10f, "Q", "%.2f".format(b.q), log = true) { update(b.copy(q = it)) }
             }
+            var cOpen by remember { mutableStateOf(false) }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = b.comp.on,
+                    onClick = { update(b.copy(comp = b.comp.copy(on = !b.comp.on))) },
+                    label = { Text("Compressor") }
+                )
+                TextButton(onClick = { cOpen = !cOpen }) { Text(if (cOpen) "Sembunyikan ▴" else "Atur ▾", fontSize = 12.sp) }
+            }
+            if (cOpen) {
+                val c = b.comp
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    Knob(c.threshold, -60f, 0f, "Thresh", "%.0f dB".format(c.threshold), reset = -24f) { v -> update(b.copy(comp = c.copy(threshold = v))) }
+                    Knob(c.ratio, 1f, 20f, "Ratio", "%.1f:1".format(c.ratio), reset = 3f) { v -> update(b.copy(comp = c.copy(ratio = v))) }
+                    Knob(c.attack, 1f, 200f, "Attack", "%.0f ms".format(c.attack), log = true, reset = 10f) { v -> update(b.copy(comp = c.copy(attack = v))) }
+                    Knob(c.release, 10f, 1000f, "Release", "%.0f ms".format(c.release), log = true, reset = 120f) { v -> update(b.copy(comp = c.copy(release = v))) }
+                    Knob(c.makeup, 0f, 24f, "Makeup", "%.1f dB".format(c.makeup), reset = 0f) { v -> update(b.copy(comp = c.copy(makeup = v))) }
+                }
+                Text(
+                    "Berlaku pada rentang frekuensi band ini (setelah EQ). Maks 8 band compressor aktif per channel.",
+                    color = Color(0xFF8A94A3), fontSize = 11.sp
+                )
+            }
         }
     }
 }
 
 @Composable
-fun Section(title: String, content: @Composable () -> Unit) {
+fun Section(title: String, onReset: (() -> Unit)? = null, content: @Composable () -> Unit) {
     Card(colors = CardDefaults.cardColors(containerColor = CARD), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(title, color = CYAN, fontSize = 14.sp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, color = CYAN, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                if (onReset != null) {
+                    TextButton(onClick = onReset) { Text("Reset", fontSize = 12.sp, color = Color(0xFF8A94A3)) }
+                }
+            }
             content()
         }
     }
@@ -234,19 +287,19 @@ fun ToneTab(s: EqState) {
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         item {
-            Section("Tone — Channel L") {
+            Section("Tone — Channel L", onReset = { EqRepo.update { it.copy(knobsL = List(5) { 0f }, sendL = List(5) { true }) } }) {
                 KnobRow(s.knobsL, s.sendL, { i, v -> EqRepo.update { it.copy(knobsL = it.knobsL.with(i, v)) } },
                     { i, b -> EqRepo.update { it.copy(sendL = it.sendL.with(i, b)) } })
             }
         }
         item {
-            Section("Tone — Channel R") {
+            Section("Tone — Channel R", onReset = { EqRepo.update { it.copy(knobsR = List(5) { 0f }, sendR = List(5) { true }) } }) {
                 KnobRow(s.knobsR, s.sendR, { i, v -> EqRepo.update { it.copy(knobsR = it.knobsR.with(i, v)) } },
                     { i, b -> EqRepo.update { it.copy(sendR = it.sendR.with(i, b)) } })
             }
         }
         item {
-            Section("Vocal (200 Hz – 4 kHz)") {
+            Section("Vocal (200 Hz – 4 kHz)", onReset = { EqRepo.update { it.copy(vocalL = 0f, vocalR = 0f) } }) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     Knob(s.vocalL, -100f, 100f, "Vocal L", "%+.0f%%".format(s.vocalL), reset = 0f) { v -> EqRepo.update { it.copy(vocalL = v) } }
                     Knob(s.vocalR, -100f, 100f, "Vocal R", "%+.0f%%".format(s.vocalR), reset = 0f) { v -> EqRepo.update { it.copy(vocalR = v) } }
@@ -278,7 +331,7 @@ fun MasterTab(s: EqState) {
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         item {
-            Section("Level") {
+            Section("Level", onReset = { EqRepo.update { it.copy(preamp = 0f, gain = 0f, volume = 100f, balance = 0f) } }) {
                 LSlider("PreAmp", s.preamp, -12f..12f, "%+.1f dB".format(s.preamp)) { v -> EqRepo.update { it.copy(preamp = v) } }
                 LSlider("Gain", s.gain, -12f..12f, "%+.1f dB".format(s.gain)) { v -> EqRepo.update { it.copy(gain = v) } }
                 LSlider("Volume", s.volume, 0f..100f, "%.0f%%".format(s.volume)) { v -> EqRepo.update { it.copy(volume = v) } }
@@ -291,7 +344,7 @@ fun MasterTab(s: EqState) {
             }
         }
         item {
-            Section("Level Channel L / R") {
+            Section("Level Channel L / R", onReset = { EqRepo.update { it.copy(lvlL = 0f, lvlR = 0f) } }) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     VSlider(s.lvlL, -60f..12f, "L", lvlText(s.lvlL)) { v -> EqRepo.update { it.copy(lvlL = v) } }
                     VSlider(s.lvlR, -60f..12f, "R", lvlText(s.lvlR)) { v -> EqRepo.update { it.copy(lvlR = v) } }
@@ -300,7 +353,7 @@ fun MasterTab(s: EqState) {
             }
         }
         item {
-            Section("Compressor") {
+            Section("Compressor Master", onReset = { EqRepo.update { it.copy(comp = Comp()) } }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("On / Off", color = Color.White, modifier = Modifier.weight(1f))
                     Switch(checked = c.on, onCheckedChange = { v -> EqRepo.update { it.copy(comp = it.comp.copy(on = v)) } })
@@ -391,7 +444,7 @@ fun FxTab(s: EqState, onFxToggle: (Boolean) -> Unit) {
             }
         }
         item {
-            Section("Reverb") {
+            Section("Reverb", onReset = { val d = Fx(); fxUpdate { it.copy(rvOn = d.rvOn, rvMix = d.rvMix, rvRoom = d.rvRoom, rvDamp = d.rvDamp) } }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("On / Off", color = Color.White, modifier = Modifier.weight(1f))
                     Switch(checked = f.rvOn, onCheckedChange = { v -> fxUpdate { it.copy(rvOn = v) } })
@@ -404,7 +457,7 @@ fun FxTab(s: EqState, onFxToggle: (Boolean) -> Unit) {
             }
         }
         item {
-            Section("Echo") {
+            Section("Echo", onReset = { val d = Fx(); fxUpdate { it.copy(ecOn = d.ecOn, ecMix = d.ecMix, ecTime = d.ecTime, ecFb = d.ecFb) } }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("On / Off", color = Color.White, modifier = Modifier.weight(1f))
                     Switch(checked = f.ecOn, onCheckedChange = { v -> fxUpdate { it.copy(ecOn = v) } })

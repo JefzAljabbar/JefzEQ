@@ -16,6 +16,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -177,6 +178,7 @@ fun RtaTab(s: EqState, onFxToggle: (Boolean) -> Unit, onRtaToggle: (Boolean) -> 
                             FilterChip(Rta.fft == n, { Rta.fft = n }, { Text("FFT $n") })
                         }
                     }
+                    OutlinedButton(onClick = { Rta.resetView() }) { Text("Reset tampilan") }
                     if (!s.fxOn) {
                         Text(
                             "Grafik Internal (input) butuh capture app. Aktifkan dulu agar bisa dibandingkan dengan Mic (output).",

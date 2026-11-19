@@ -33,7 +33,7 @@ fun TestTab() {
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         item {
-            Section("Output") {
+            Section("Output", onReset = { Gen.resetOutput() }) {
                 LSlider("Level", Gen.levelDb, -60f..-6f, if (Gen.levelDb <= -60f) "Off" else "%.0f dBFS".format(Gen.levelDb)) { Gen.levelDb = it }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Chan.values().forEach { c ->
@@ -58,7 +58,7 @@ fun TestTab() {
             }
         }
         item {
-            Section("Tone Generator (0 Hz – 25 kHz)") {
+            Section("Tone Generator (0 Hz – 25 kHz)", onReset = { Gen.resetTone() }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("On / Off", color = Color.White, modifier = Modifier.weight(1f))
                     Switch(

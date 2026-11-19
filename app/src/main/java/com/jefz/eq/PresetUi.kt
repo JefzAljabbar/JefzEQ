@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -34,6 +35,7 @@ import androidx.compose.ui.unit.sp
 fun PresetTab(s: EqState, onExport: (String) -> Unit, onImport: () -> Unit) {
     val ctx = LocalContext.current
     var name by remember { mutableStateOf("") }
+    var confirmAll by remember { mutableStateOf(false) }
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
@@ -84,6 +86,30 @@ fun PresetTab(s: EqState, onExport: (String) -> Unit, onImport: () -> Unit) {
                 }
             }
         }
+        item {
+            Section("Reset Semua") {
+                Text(
+                    "Mengembalikan semua pengaturan ke default (band kosong). Preset tersimpan tidak terhapus.",
+                    color = Color(0xFF8A94A3), fontSize = 11.sp
+                )
+                OutlinedButton(onClick = { confirmAll = true }) { Text("Reset semua pengaturan") }
+            }
+        }
         item { Spacer(Modifier.height(24.dp)) }
+    }
+    if (confirmAll) {
+        AlertDialog(
+            onDismissRequest = { confirmAll = false },
+            title = { Text("Reset semua?") },
+            text = { Text("Semua band, Tone, Vocal, Master, Compressor, dan FX kembali ke default.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    EqRepo.update { cur -> EqState(power = cur.power, fxOn = cur.fxOn, fxPkg = cur.fxPkg) }
+                    Rta.resetView(); Gen.resetOutput(); Gen.resetTone()
+                    confirmAll = false
+                }) { Text("Reset") }
+            },
+            dismissButton = { TextButton(onClick = { confirmAll = false }) { Text("Batal") } }
+        )
     }
 }
