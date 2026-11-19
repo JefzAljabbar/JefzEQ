@@ -1,4 +1,4 @@
-# JefzEQ v0.5
+# JefzEQ v0.6
 
 Parametric stereo EQ (L/R terpisah), tone knobs, compressor, reverb/echo, RTA, generator tes.
 
@@ -19,3 +19,9 @@ Parametric stereo EQ (L/R terpisah), tone knobs, compressor, reverb/echo, RTA, g
 
 ## Izin
 Rekam audio (RTA + capture internal), notifikasi, layanan foreground, capture layar/audio (dialog sistem untuk capture app).
+
+## Baru di v0.6
+- Tab bisa digeser kiri/kanan, tab bar di bawah.
+- Tone: knob Vocal L/R (200 Hz-4 kHz). Master: slider vertikal level channel L/R.
+- Preset (tab Preset): simpan/muat/hapus, import/export file JSON.
+- FX tab tidak lagi lag (daftar app dimuat di background).

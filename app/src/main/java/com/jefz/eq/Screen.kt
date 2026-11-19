@@ -13,6 +13,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -54,7 +62,7 @@ import kotlin.math.pow
 private val CYAN = Color(0xFF00E5FF)
 private val ORANGE = Color(0xFFFF9100)
 private val CARD = Color(0xFF181D25)
-private val TABS = listOf("Bands", "Tone", "FX", "Master", "RTA", "Test")
+private val TABS = listOf("Bands", "Tone", "FX", "Master", "RTA", "Test", "Preset")
 
 private fun update(b: Band) = EqRepo.update { s ->
     s.copy(bands = s.bands.map { if (it.id == b.id) b else it })
@@ -65,8 +73,15 @@ private fun <T> List<T>.with(i: Int, v: T): List<T> = toMutableList().also { it[
 private fun fmtFreq(f: Float) = if (f >= 1000f) "%.2f kHz".format(f / 1000f) else "%.0f Hz".format(f)
 
 @Composable
-fun EqScreen(state: EqState, onFxToggle: (Boolean) -> Unit, onRtaToggle: (Boolean) -> Unit) {
-    var tab by remember { mutableIntStateOf(0) }
+fun EqScreen(
+    state: EqState,
+    onFxToggle: (Boolean) -> Unit,
+    onRtaToggle: (Boolean) -> Unit,
+    onExport: (String) -> Unit,
+    onImport: () -> Unit
+) {
+    val pager = rememberPagerState(pageCount = { TABS.size })
+    val scope = rememberCoroutineScope()
     Column(Modifier.fillMaxSize().background(Color(0xFF0E1116)).statusBarsPadding()) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
@@ -77,19 +92,36 @@ fun EqScreen(state: EqState, onFxToggle: (Boolean) -> Unit, onRtaToggle: (Boolea
             Spacer(Modifier.width(8.dp))
             Switch(checked = state.power, onCheckedChange = { p -> EqRepo.update { it.copy(power = p) } })
         }
-        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TABS.forEachIndexed { i, t ->
-                FilterChip(selected = tab == i, onClick = { tab = i }, label = { Text(t) })
+        RtaView(state, Modifier.fillMaxWidth().height(190.dp).padding(horizontal = 12.dp, vertical = 8.dp))
+        HorizontalPager(state = pager, modifier = Modifier.weight(1f).fillMaxWidth()) { page ->
+            when (page) {
+                0 -> BandsTab(state)
+                1 -> ToneTab(state)
+                2 -> FxTab(state, onFxToggle)
+                3 -> MasterTab(state)
+                4 -> RtaTab(state, onFxToggle, onRtaToggle)
+                5 -> TestTab()
+                else -> PresetTab(state, onExport, onImport)
             }
         }
-        RtaView(state, Modifier.fillMaxWidth().height(190.dp).padding(horizontal = 12.dp, vertical = 8.dp))
-        when (tab) {
-            0 -> BandsTab(state)
-            1 -> ToneTab(state)
-            2 -> FxTab(state, onFxToggle)
-            3 -> MasterTab(state)
-            4 -> RtaTab(state, onFxToggle, onRtaToggle)
-            else -> TestTab()
+        BottomTabs(pager.currentPage) { i -> scope.launch { pager.animateScrollToPage(i) } }
+    }
+}
+
+@Composable
+private fun BottomTabs(selected: Int, onSelect: (Int) -> Unit) {
+    Row(Modifier.fillMaxWidth().background(Color(0xFF12161C))) {
+        TABS.forEachIndexed { i, t ->
+            val sel = i == selected
+            Column(
+                Modifier.weight(1f).clickable { onSelect(i) },
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(Modifier.fillMaxWidth().height(3.dp).background(if (sel) CYAN else Color.Transparent))
+                Spacer(Modifier.height(10.dp))
+                Text(t, fontSize = 11.sp, maxLines = 1, color = if (sel) CYAN else Color(0xFF8A94A3))
+                Spacer(Modifier.height(10.dp))
+            }
         }
     }
 }
@@ -214,6 +246,14 @@ fun ToneTab(s: EqState) {
             }
         }
         item {
+            Section("Vocal (200 Hz – 4 kHz)") {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    Knob(s.vocalL, -100f, 100f, "Vocal L", "%+.0f%%".format(s.vocalL), reset = 0f) { v -> EqRepo.update { it.copy(vocalL = v) } }
+                    Knob(s.vocalR, -100f, 100f, "Vocal R", "%+.0f%%".format(s.vocalR), reset = 0f) { v -> EqRepo.update { it.copy(vocalR = v) } }
+                }
+            }
+        }
+        item {
             Text("Geser knob ke atas/bawah. Double-tap = reset ke 0. -100% = mati. Chip FX = kirim band itu ke Reverb/Echo.",
                 color = Color(0xFF8A94A3), fontSize = 11.sp)
             Spacer(Modifier.height(24.dp))
@@ -248,6 +288,15 @@ fun MasterTab(s: EqState) {
                     else -> "Center"
                 }
                 LSlider("Balance", s.balance, -100f..100f, bt) { v -> EqRepo.update { it.copy(balance = v) } }
+            }
+        }
+        item {
+            Section("Level Channel L / R") {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    VSlider(s.lvlL, -60f..12f, "L", lvlText(s.lvlL)) { v -> EqRepo.update { it.copy(lvlL = v) } }
+                    VSlider(s.lvlR, -60f..12f, "R", lvlText(s.lvlR)) { v -> EqRepo.update { it.copy(lvlR = v) } }
+                }
+                Text("Double-tap slider = reset 0 dB. Paling bawah = mute.", color = Color(0xFF8A94A3), fontSize = 11.sp)
             }
         }
         item {
@@ -312,7 +361,13 @@ private fun loadApps(pm: PackageManager): List<Pair<String, String>> {
 @Composable
 fun FxTab(s: EqState, onFxToggle: (Boolean) -> Unit) {
     val ctx = LocalContext.current
-    val apps = remember { loadApps(ctx.packageManager) }
+    var apps by remember { mutableStateOf(Apps.list) }
+    LaunchedEffect(Unit) {
+        if (!Apps.loaded) {
+            withContext(Dispatchers.Default) { Apps.load(ctx.packageManager) }
+            apps = Apps.list
+        }
+    }
     var pick by remember { mutableStateOf(false) }
     val f = s.fx
     LazyColumn(
@@ -381,3 +436,5 @@ fun FxTab(s: EqState, onFxToggle: (Boolean) -> Unit) {
         )
     }
 }
+
+private fun lvlText(v: Float) = if (v <= -59.5f) "Mute" else "%+.1f dB".format(v)

@@ -18,15 +18,15 @@ object EqRepo {
     fun init(ctx: Context) {
         if (prefs != null) return
         prefs = ctx.applicationContext.getSharedPreferences("jefzeq", Context.MODE_PRIVATE)
-        prefs?.getString("state", null)?.let { runCatching { _state.value = parse(it) } }
+        prefs?.getString("state", null)?.let { runCatching { _state.value = deserialize(it) } }
     }
 
     fun update(f: (EqState) -> EqState) {
         _state.update(f)
-        prefs?.edit()?.putString("state", toJson(_state.value))?.apply()
+        prefs?.edit()?.putString("state", serialize(_state.value))?.apply()
     }
 
-    private fun toJson(s: EqState): String {
+    fun serialize(s: EqState): String {
         val arr = JSONArray()
         s.bands.forEach {
             arr.put(JSONObject().put("id", it.id).put("type", it.type.name).put("chan", it.chan.name)
@@ -47,6 +47,8 @@ object EqRepo {
                 .put("ecOn", s.fx.ecOn).put("ecMix", s.fx.ecMix.toDouble())
                 .put("ecTime", s.fx.ecTime.toDouble()).put("ecFb", s.fx.ecFb.toDouble()))
             .put("sl", JSONArray(s.sendL)).put("sr", JSONArray(s.sendR))
+            .put("vl", s.vocalL.toDouble()).put("vr", s.vocalR.toDouble())
+            .put("ll", s.lvlL.toDouble()).put("lr", s.lvlR.toDouble())
             .put("pkg", s.fxPkg)
             .toString()
     }
@@ -60,7 +62,7 @@ object EqRepo {
     private fun floats(a: JSONArray?): List<Float> =
         if (a == null || a.length() != 5) List(5) { 0f } else List(5) { a.getDouble(it).toFloat() }
 
-    private fun parse(js: String): EqState {
+    fun deserialize(js: String): EqState {
         val o = JSONObject(js)
         val arr = o.getJSONArray("bands")
         val bands = List(arr.length()) { i ->
@@ -111,6 +113,10 @@ object EqRepo {
             fx = fx,
             sendL = bools(o.optJSONArray("sl")),
             sendR = bools(o.optJSONArray("sr")),
+            vocalL = o.optDouble("vl", 0.0).toFloat(),
+            vocalR = o.optDouble("vr", 0.0).toFloat(),
+            lvlL = o.optDouble("ll", 0.0).toFloat(),
+            lvlR = o.optDouble("lr", 0.0).toFloat(),
             fxOn = false,
             fxPkg = o.optString("pkg", "com.google.android.youtube")
         )

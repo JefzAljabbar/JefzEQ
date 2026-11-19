@@ -50,6 +50,44 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private var pendingExport: String? = null
+
+    private val exportLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        val n = pendingExport
+        pendingExport = null
+        if (uri != null && n != null) {
+            val t = PresetStore.exportText(n)
+            try {
+                if (t == null) throw IllegalStateException()
+                contentResolver.openOutputStream(uri)?.use { it.write(t.toByteArray()) }
+                Toast.makeText(this, "Preset diekspor", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(this, "Gagal ekspor", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private val importLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            try {
+                val t = contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                val n = t?.let { PresetStore.importText(it) }
+                Toast.makeText(this, if (n != null) "Diimpor: $n" else "Bukan file preset JefzEQ", Toast.LENGTH_LONG).show()
+            } catch (e: Exception) {
+                Toast.makeText(this, "Gagal impor", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun exportPreset(name: String) {
+        pendingExport = name
+        exportLauncher.launch("JefzEQ_$name.json")
+    }
+
+    private fun importPreset() {
+        importLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream", "*/*"))
+    }
+
     override fun onStart() {
         super.onStart()
         if (Rta.on) Rta.start(this)
@@ -82,6 +120,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         EqRepo.init(this)
+        PresetStore.init(this)
+        Thread { Apps.load(packageManager) }.start()
         if (!EqService.fxRunning) EqRepo.update { it.copy(fxOn = false) }
         if (Build.VERSION.SDK_INT >= 33 &&
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
@@ -102,7 +142,13 @@ class MainActivity : ComponentActivity() {
                     surface = Color(0xFF181D25)
                 )
             ) {
-                EqScreen(state, onFxToggle = { setFx(it) }, onRtaToggle = { setRta(it) })
+                EqScreen(
+                    state,
+                    onFxToggle = { setFx(it) },
+                    onRtaToggle = { setRta(it) },
+                    onExport = { exportPreset(it) },
+                    onImport = { importPreset() }
+                )
             }
         }
     }

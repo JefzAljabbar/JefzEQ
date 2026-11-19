@@ -58,6 +58,10 @@ data class EqState(
     val fx: Fx = Fx(),
     val sendL: List<Boolean> = List(5) { true }, // per-knob FX send, channel L
     val sendR: List<Boolean> = List(5) { true },
+    val vocalL: Float = 0f,  // -100..+100 %
+    val vocalR: Float = 0f,
+    val lvlL: Float = 0f,    // channel level dB (-60 = mute)
+    val lvlR: Float = 0f,
     val fxOn: Boolean = false,                   // wet capture running (not persisted)
     val fxPkg: String = "com.google.android.youtube"
 )

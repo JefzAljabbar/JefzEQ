@@ -49,8 +49,8 @@ class EqEngine {
             // PreAmp + Volume + Balance -> per-channel input gain
             val volDb = lin2db(s.volume / 100.0)
             val bal = (s.balance / 100.0).coerceIn(-1.0, 1.0)
-            val lDb = s.preamp + volDb + lin2db(if (bal > 0) 1 - bal else 1.0)
-            val rDb = s.preamp + volDb + lin2db(if (bal < 0) 1 + bal else 1.0)
+            val lDb = s.preamp + volDb + lin2db(if (bal > 0) 1 - bal else 1.0) + s.lvlL
+            val rDb = s.preamp + volDb + lin2db(if (bal < 0) 1 + bal else 1.0) + s.lvlR
             d.setInputGainbyChannel(0, lDb.coerceIn(-80.0, 24.0).toFloat())
             d.setInputGainbyChannel(1, rDb.coerceIn(-80.0, 24.0).toFloat())
 

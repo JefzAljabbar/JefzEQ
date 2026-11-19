@@ -77,8 +77,8 @@ object Dsp {
         }
     }
 
-    private val LO = doubleArrayOf(Double.NaN, 80.0, 250.0, 2000.0, 6000.0)
-    private val HI = doubleArrayOf(80.0, 250.0, 2000.0, 6000.0, Double.NaN)
+    private val LO = doubleArrayOf(Double.NaN, 80.0, 250.0, 2000.0, 6000.0, 200.0)
+    private val HI = doubleArrayOf(80.0, 250.0, 2000.0, 6000.0, Double.NaN, 4000.0)
 
     private fun smooth(t: Double): Double {
         val x = t.coerceIn(0.0, 1.0)
@@ -88,6 +88,10 @@ object Dsp {
     /** Knob percent (-100..100) to dB. -100% = -60 dB (mute). */
     fun knobDb(p: Float): Double =
         if (p >= 0f) p * 0.12 else -60.0 * (abs(p) / 100.0).pow(2.0)
+
+    /** Vocal knob percent to dB: +100% = +12 dB, -100% = -30 dB. */
+    fun vocalDb(p: Float): Double =
+        if (p >= 0f) p * 0.12 else -30.0 * (abs(p) / 100.0).pow(1.5)
 
     private fun knobWeight(k: Int, f: Double): Double {
         val x = ln(f.coerceAtLeast(1.0)) / ln(2.0)
@@ -108,6 +112,7 @@ object Dsp {
     /** Combined response of one channel (L or R) at the given frequencies, in dB. */
     fun curve(s: EqState, ch: Chan, freqs: DoubleArray): DoubleArray {
         val knobs = if (ch == Chan.R) s.knobsR else s.knobsL
+        val vocal = if (ch == Chan.R) s.vocalR else s.vocalL
         val active = s.bands.filter { it.on && (it.chan == Chan.LR || it.chan == ch) }
         return DoubleArray(freqs.size) { i ->
             var out = 0.0
@@ -121,7 +126,7 @@ object Dsp {
                 }
                 out = best
             }
-            (out + knobsDb(knobs, freqs[i])).coerceIn(MIN_DB, MAX_DB)
+            (out + knobsDb(knobs, freqs[i]) + (if (vocal != 0f) knobWeight(5, freqs[i]) * vocalDb(vocal) else 0.0)).coerceIn(MIN_DB, MAX_DB)
         }
     }
 }
