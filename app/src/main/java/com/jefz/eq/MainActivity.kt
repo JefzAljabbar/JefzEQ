@@ -36,6 +36,30 @@ class MainActivity : ComponentActivity() {
         if (ok) launchProjection()
     }
 
+    private val rtaPermLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        if (ok) { Rta.on = true; Rta.start(this) }
+    }
+
+    private fun setRta(on: Boolean) {
+        if (!on) { Rta.on = false; Rta.stop(); return }
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            rtaPermLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        } else {
+            Rta.on = true
+            Rta.start(this)
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (Rta.on) Rta.start(this)
+    }
+
+    override fun onStop() {
+        Rta.stop()
+        super.onStop()
+    }
+
     private fun launchProjection() {
         val mpm = getSystemService(MediaProjectionManager::class.java)
         projLauncher.launch(mpm.createScreenCaptureIntent())
@@ -77,7 +101,7 @@ class MainActivity : ComponentActivity() {
                     surface = Color(0xFF181D25)
                 )
             ) {
-                EqScreen(state, onFxToggle = { setFx(it) })
+                EqScreen(state, onFxToggle = { setFx(it) }, onRtaToggle = { setRta(it) })
             }
         }
     }

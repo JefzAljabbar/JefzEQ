@@ -65,11 +65,14 @@ class WetEngine(private val proj: MediaProjection) {
             try {
                 r.startRecording()
                 t.play()
+                Rta.internalActive = true
                 while (running) {
                     val n = r.read(inB, 0, inB.size)
                     if (n < 0) break
                     if (n == 0) continue
+                    Rta.intRing.push(inB, n, true)
                     val s = EqRepo.state.value
+                    if (!s.fx.rvOn && !s.fx.ecOn) continue
                     chL.configure(s, s.sendL, fs)
                     chR.configure(s, s.sendR, fs)
                     val nf = n / 2
@@ -84,6 +87,7 @@ class WetEngine(private val proj: MediaProjection) {
             } catch (e: Exception) {
                 Log.w("JefzEQ", "wet loop failed", e)
             } finally {
+                Rta.internalActive = false
                 try { r.stop() } catch (_: Exception) {}
                 try { t.stop() } catch (_: Exception) {}
                 r.release(); t.release()

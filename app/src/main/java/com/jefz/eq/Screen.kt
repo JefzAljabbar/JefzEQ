@@ -13,6 +13,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -51,7 +54,7 @@ import kotlin.math.pow
 private val CYAN = Color(0xFF00E5FF)
 private val ORANGE = Color(0xFFFF9100)
 private val CARD = Color(0xFF181D25)
-private val TABS = listOf("Bands", "Tone", "FX", "Master")
+private val TABS = listOf("Bands", "Tone", "FX", "Master", "RTA")
 
 private fun update(b: Band) = EqRepo.update { s ->
     s.copy(bands = s.bands.map { if (it.id == b.id) b else it })
@@ -62,7 +65,7 @@ private fun <T> List<T>.with(i: Int, v: T): List<T> = toMutableList().also { it[
 private fun fmtFreq(f: Float) = if (f >= 1000f) "%.2f kHz".format(f / 1000f) else "%.0f Hz".format(f)
 
 @Composable
-fun EqScreen(state: EqState, onFxToggle: (Boolean) -> Unit) {
+fun EqScreen(state: EqState, onFxToggle: (Boolean) -> Unit, onRtaToggle: (Boolean) -> Unit) {
     var tab by remember { mutableIntStateOf(0) }
     Column(Modifier.fillMaxSize().background(Color(0xFF0E1116)).statusBarsPadding()) {
         Row(
@@ -70,19 +73,22 @@ fun EqScreen(state: EqState, onFxToggle: (Boolean) -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("JefzEQ", fontSize = 22.sp, color = CYAN, modifier = Modifier.weight(1f))
+            FilterChip(selected = Rta.on, onClick = { onRtaToggle(!Rta.on) }, label = { Text("RTA") })
+            Spacer(Modifier.width(8.dp))
             Switch(checked = state.power, onCheckedChange = { p -> EqRepo.update { it.copy(power = p) } })
         }
-        Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TABS.forEachIndexed { i, t ->
                 FilterChip(selected = tab == i, onClick = { tab = i }, label = { Text(t) })
             }
         }
-        ResponseGraph(state, Modifier.fillMaxWidth().height(170.dp).padding(16.dp))
+        RtaView(state, Modifier.fillMaxWidth().height(190.dp).padding(horizontal = 12.dp, vertical = 8.dp))
         when (tab) {
             0 -> BandsTab(state)
             1 -> ToneTab(state)
             2 -> FxTab(state, onFxToggle)
-            else -> MasterTab(state)
+            3 -> MasterTab(state)
+            else -> RtaTab(state, onFxToggle, onRtaToggle)
         }
     }
 }
@@ -316,7 +322,7 @@ fun FxTab(s: EqState, onFxToggle: (Boolean) -> Unit) {
         item {
             Section("Sumber Efek") {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Aktifkan Reverb / Echo", color = Color.White, modifier = Modifier.weight(1f))
+                    Text("Capture app (RTA internal & efek)", color = Color.White, modifier = Modifier.weight(1f))
                     Switch(checked = s.fxOn, onCheckedChange = onFxToggle)
                 }
                 val label = apps.firstOrNull { it.second == s.fxPkg }?.first ?: s.fxPkg
