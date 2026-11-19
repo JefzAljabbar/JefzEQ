@@ -54,7 +54,7 @@ import kotlin.math.pow
 private val CYAN = Color(0xFF00E5FF)
 private val ORANGE = Color(0xFFFF9100)
 private val CARD = Color(0xFF181D25)
-private val TABS = listOf("Bands", "Tone", "FX", "Master", "RTA")
+private val TABS = listOf("Bands", "Tone", "FX", "Master", "RTA", "Test")
 
 private fun update(b: Band) = EqRepo.update { s ->
     s.copy(bands = s.bands.map { if (it.id == b.id) b else it })
@@ -88,7 +88,8 @@ fun EqScreen(state: EqState, onFxToggle: (Boolean) -> Unit, onRtaToggle: (Boolea
             1 -> ToneTab(state)
             2 -> FxTab(state, onFxToggle)
             3 -> MasterTab(state)
-            else -> RtaTab(state, onFxToggle, onRtaToggle)
+            4 -> RtaTab(state, onFxToggle, onRtaToggle)
+            else -> TestTab()
         }
     }
 }
@@ -165,7 +166,7 @@ fun BandCard(index: Int, b: Band) {
 }
 
 @Composable
-private fun Section(title: String, content: @Composable () -> Unit) {
+fun Section(title: String, content: @Composable () -> Unit) {
     Card(colors = CardDefaults.cardColors(containerColor = CARD), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(title, color = CYAN, fontSize = 14.sp)
@@ -221,7 +222,7 @@ fun ToneTab(s: EqState) {
 }
 
 @Composable
-private fun LSlider(label: String, value: Float, range: ClosedFloatingPointRange<Float>, text: String, onChange: (Float) -> Unit) {
+fun LSlider(label: String, value: Float, range: ClosedFloatingPointRange<Float>, text: String, onChange: (Float) -> Unit) {
     Column {
         Text("$label  $text", color = Color.White, fontSize = 12.sp)
         Slider(value = value, onValueChange = onChange, valueRange = range)

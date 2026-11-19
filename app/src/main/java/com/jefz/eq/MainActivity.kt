@@ -56,6 +56,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStop() {
+        Gen.stop()
         Rta.stop()
         super.onStop()
     }
