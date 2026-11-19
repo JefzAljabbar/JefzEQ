@@ -42,8 +42,17 @@ object EqRepo {
             .put("comp", JSONObject().put("on", c.on).put("th", c.threshold.toDouble())
                 .put("ratio", c.ratio.toDouble()).put("atk", c.attack.toDouble())
                 .put("rel", c.release.toDouble()).put("mk", c.makeup.toDouble()))
+            .put("fx", JSONObject().put("rvOn", s.fx.rvOn).put("rvMix", s.fx.rvMix.toDouble())
+                .put("rvRoom", s.fx.rvRoom.toDouble()).put("rvDamp", s.fx.rvDamp.toDouble())
+                .put("ecOn", s.fx.ecOn).put("ecMix", s.fx.ecMix.toDouble())
+                .put("ecTime", s.fx.ecTime.toDouble()).put("ecFb", s.fx.ecFb.toDouble()))
+            .put("sl", JSONArray(s.sendL)).put("sr", JSONArray(s.sendR))
+            .put("pkg", s.fxPkg)
             .toString()
     }
+
+    private fun bools(a: JSONArray?): List<Boolean> =
+        if (a == null || a.length() != 5) List(5) { true } else List(5) { a.getBoolean(it) }
 
     private inline fun <reified T : Enum<T>> enumOr(name: String, def: T): T =
         runCatching { enumValueOf<T>(name) }.getOrDefault(def)
@@ -76,6 +85,18 @@ object EqRepo {
             release = c.optDouble("rel", d.release.toDouble()).toFloat(),
             makeup = c.optDouble("mk", d.makeup.toDouble()).toFloat()
         )
+        val fd = Fx()
+        val f = o.optJSONObject("fx")
+        val fx = if (f == null) fd else Fx(
+            rvOn = f.optBoolean("rvOn", fd.rvOn),
+            rvMix = f.optDouble("rvMix", fd.rvMix.toDouble()).toFloat(),
+            rvRoom = f.optDouble("rvRoom", fd.rvRoom.toDouble()).toFloat(),
+            rvDamp = f.optDouble("rvDamp", fd.rvDamp.toDouble()).toFloat(),
+            ecOn = f.optBoolean("ecOn", fd.ecOn),
+            ecMix = f.optDouble("ecMix", fd.ecMix.toDouble()).toFloat(),
+            ecTime = f.optDouble("ecTime", fd.ecTime.toDouble()).toFloat(),
+            ecFb = f.optDouble("ecFb", fd.ecFb.toDouble()).toFloat()
+        )
         return EqState(
             power = o.getBoolean("power"),
             mode = enumOr(o.getString("mode"), EqMode.CASCADE),
@@ -86,7 +107,12 @@ object EqRepo {
             gain = o.optDouble("gain", 0.0).toFloat(),
             volume = o.optDouble("vol", 100.0).toFloat(),
             balance = o.optDouble("bal", 0.0).toFloat(),
-            comp = comp
+            comp = comp,
+            fx = fx,
+            sendL = bools(o.optJSONArray("sl")),
+            sendR = bools(o.optJSONArray("sr")),
+            fxOn = false,
+            fxPkg = o.optString("pkg", "com.google.android.youtube")
         )
     }
 }

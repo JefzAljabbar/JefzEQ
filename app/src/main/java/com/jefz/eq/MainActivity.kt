@@ -3,10 +3,13 @@ package com.jefz.eq
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.LaunchedEffect
@@ -16,9 +19,45 @@ import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 
 class MainActivity : ComponentActivity() {
+
+    private val projLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        val data = r.data
+        if (r.resultCode == RESULT_OK && data != null) {
+            EqRepo.update { it.copy(power = true) }
+            val i = Intent(this, EqService::class.java)
+                .setAction(EqService.ACTION_FX_START)
+                .putExtra("code", r.resultCode)
+                .putExtra("data", data)
+            ContextCompat.startForegroundService(this, i)
+        }
+    }
+
+    private val micLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        if (ok) launchProjection()
+    }
+
+    private fun launchProjection() {
+        val mpm = getSystemService(MediaProjectionManager::class.java)
+        projLauncher.launch(mpm.createScreenCaptureIntent())
+    }
+
+    private fun setFx(on: Boolean) {
+        if (!on) { EqRepo.update { it.copy(fxOn = false) }; return }
+        if (Build.VERSION.SDK_INT < 29) {
+            Toast.makeText(this, "Reverb/Echo butuh Android 10+", Toast.LENGTH_LONG).show()
+            return
+        }
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            micLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        } else {
+            launchProjection()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         EqRepo.init(this)
+        if (!EqService.fxRunning) EqRepo.update { it.copy(fxOn = false) }
         if (Build.VERSION.SDK_INT >= 33 &&
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
@@ -38,7 +77,7 @@ class MainActivity : ComponentActivity() {
                     surface = Color(0xFF181D25)
                 )
             ) {
-                EqScreen(state)
+                EqScreen(state, onFxToggle = { setFx(it) })
             }
         }
     }

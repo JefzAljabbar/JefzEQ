@@ -14,7 +14,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -38,26 +40,29 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.content.Intent
+import android.content.pm.PackageManager
 import kotlin.math.ln
 import kotlin.math.pow
 
 private val CYAN = Color(0xFF00E5FF)
 private val ORANGE = Color(0xFFFF9100)
 private val CARD = Color(0xFF181D25)
-private val TABS = listOf("Bands", "Tone", "Master")
+private val TABS = listOf("Bands", "Tone", "FX", "Master")
 
 private fun update(b: Band) = EqRepo.update { s ->
     s.copy(bands = s.bands.map { if (it.id == b.id) b else it })
 }
 
-private fun List<Float>.with(i: Int, v: Float): List<Float> = toMutableList().also { it[i] = v }
+private fun <T> List<T>.with(i: Int, v: T): List<T> = toMutableList().also { it[i] = v }
 
 private fun fmtFreq(f: Float) = if (f >= 1000f) "%.2f kHz".format(f / 1000f) else "%.0f Hz".format(f)
 
 @Composable
-fun EqScreen(state: EqState) {
+fun EqScreen(state: EqState, onFxToggle: (Boolean) -> Unit) {
     var tab by remember { mutableIntStateOf(0) }
     Column(Modifier.fillMaxSize().background(Color(0xFF0E1116)).statusBarsPadding()) {
         Row(
@@ -76,6 +81,7 @@ fun EqScreen(state: EqState) {
         when (tab) {
             0 -> BandsTab(state)
             1 -> ToneTab(state)
+            2 -> FxTab(state, onFxToggle)
             else -> MasterTab(state)
         }
     }
@@ -163,10 +169,20 @@ private fun Section(title: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun KnobRow(vals: List<Float>, onChange: (Int, Float) -> Unit) {
+private fun KnobRow(
+    vals: List<Float>, sends: List<Boolean>,
+    onChange: (Int, Float) -> Unit, onSend: (Int, Boolean) -> Unit
+) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
         KNOB_NAMES.forEachIndexed { i, n ->
-            Knob(vals[i], -100f, 100f, n, "%+.0f%%".format(vals[i]), reset = 0f) { onChange(i, it) }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Knob(vals[i], -100f, 100f, n, "%+.0f%%".format(vals[i]), reset = 0f) { onChange(i, it) }
+                FilterChip(
+                    selected = sends[i],
+                    onClick = { onSend(i, !sends[i]) },
+                    label = { Text("FX", fontSize = 11.sp) }
+                )
+            }
         }
     }
 }
@@ -180,16 +196,18 @@ fun ToneTab(s: EqState) {
     ) {
         item {
             Section("Tone — Channel L") {
-                KnobRow(s.knobsL) { i, v -> EqRepo.update { it.copy(knobsL = it.knobsL.with(i, v)) } }
+                KnobRow(s.knobsL, s.sendL, { i, v -> EqRepo.update { it.copy(knobsL = it.knobsL.with(i, v)) } },
+                    { i, b -> EqRepo.update { it.copy(sendL = it.sendL.with(i, b)) } })
             }
         }
         item {
             Section("Tone — Channel R") {
-                KnobRow(s.knobsR) { i, v -> EqRepo.update { it.copy(knobsR = it.knobsR.with(i, v)) } }
+                KnobRow(s.knobsR, s.sendR, { i, v -> EqRepo.update { it.copy(knobsR = it.knobsR.with(i, v)) } },
+                    { i, b -> EqRepo.update { it.copy(sendR = it.sendR.with(i, b)) } })
             }
         }
         item {
-            Text("Geser knob ke atas/bawah. Double-tap = reset ke 0. -100% = mati.",
+            Text("Geser knob ke atas/bawah. Double-tap = reset ke 0. -100% = mati. Chip FX = kirim band itu ke Reverb/Echo.",
                 color = Color(0xFF8A94A3), fontSize = 11.sp)
             Spacer(Modifier.height(24.dp))
         }
@@ -271,5 +289,88 @@ fun ResponseGraph(state: EqState, modifier: Modifier) {
             val idx = ((bx / w) * (ch.size - 1)).toInt().coerceIn(0, ch.size - 1)
             drawCircle(Color.White, 3.dp.toPx(), Offset(bx, y(ch[idx])))
         }
+    }
+}
+
+private fun fxUpdate(f: (Fx) -> Fx) = EqRepo.update { it.copy(fx = f(it.fx)) }
+
+private fun loadApps(pm: PackageManager): List<Pair<String, String>> {
+    val i = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+    return pm.queryIntentActivities(i, 0)
+        .map { it.loadLabel(pm).toString() to it.activityInfo.packageName }
+        .distinctBy { it.second }
+        .sortedBy { it.first.lowercase() }
+}
+
+@Composable
+fun FxTab(s: EqState, onFxToggle: (Boolean) -> Unit) {
+    val ctx = LocalContext.current
+    val apps = remember { loadApps(ctx.packageManager) }
+    var pick by remember { mutableStateOf(false) }
+    val f = s.fx
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        item {
+            Section("Sumber Efek") {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Aktifkan Reverb / Echo", color = Color.White, modifier = Modifier.weight(1f))
+                    Switch(checked = s.fxOn, onCheckedChange = onFxToggle)
+                }
+                val label = apps.firstOrNull { it.second == s.fxPkg }?.first ?: s.fxPkg
+                OutlinedButton(onClick = { pick = true }) { Text("App: $label") }
+                Text(
+                    "Efek hanya memproses suara app terpilih (butuh izin rekam audio + capture layar). " +
+                        "Hanya sinyal efek (wet) yang ditambahkan, suara asli tidak digandakan. EQ utama tetap global.",
+                    color = Color(0xFF8A94A3), fontSize = 11.sp
+                )
+            }
+        }
+        item {
+            Section("Reverb") {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("On / Off", color = Color.White, modifier = Modifier.weight(1f))
+                    Switch(checked = f.rvOn, onCheckedChange = { v -> fxUpdate { it.copy(rvOn = v) } })
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    Knob(f.rvMix, 0f, 100f, "Mix", "%.0f%%".format(f.rvMix)) { v -> fxUpdate { it.copy(rvMix = v) } }
+                    Knob(f.rvRoom, 0f, 100f, "Room", "%.0f%%".format(f.rvRoom)) { v -> fxUpdate { it.copy(rvRoom = v) } }
+                    Knob(f.rvDamp, 0f, 100f, "Damp", "%.0f%%".format(f.rvDamp)) { v -> fxUpdate { it.copy(rvDamp = v) } }
+                }
+            }
+        }
+        item {
+            Section("Echo") {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("On / Off", color = Color.White, modifier = Modifier.weight(1f))
+                    Switch(checked = f.ecOn, onCheckedChange = { v -> fxUpdate { it.copy(ecOn = v) } })
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    Knob(f.ecMix, 0f, 100f, "Mix", "%.0f%%".format(f.ecMix)) { v -> fxUpdate { it.copy(ecMix = v) } }
+                    Knob(f.ecTime, 50f, 1000f, "Time", "%.0f ms".format(f.ecTime), log = true) { v -> fxUpdate { it.copy(ecTime = v) } }
+                    Knob(f.ecFb, 0f, 100f, "Feedback", "%.0f%%".format(f.ecFb)) { v -> fxUpdate { it.copy(ecFb = v) } }
+                }
+            }
+        }
+        item { Spacer(Modifier.height(24.dp)) }
+    }
+    if (pick) {
+        AlertDialog(
+            onDismissRequest = { pick = false },
+            confirmButton = { TextButton(onClick = { pick = false }) { Text("Tutup") } },
+            title = { Text("Pilih App") },
+            text = {
+                LazyColumn(Modifier.height(360.dp)) {
+                    items(apps) { a ->
+                        TextButton(
+                            onClick = { EqRepo.update { it.copy(fxPkg = a.second) }; pick = false },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text(a.first, modifier = Modifier.fillMaxWidth()) }
+                    }
+                }
+            }
+        )
     }
 }

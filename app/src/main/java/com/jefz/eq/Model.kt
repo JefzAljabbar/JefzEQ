@@ -33,6 +33,17 @@ data class Comp(
     val makeup: Float = 0f       // dB
 )
 
+data class Fx(
+    val rvOn: Boolean = false,
+    val rvMix: Float = 30f,   // %
+    val rvRoom: Float = 60f,  // %
+    val rvDamp: Float = 50f,  // %
+    val ecOn: Boolean = false,
+    val ecMix: Float = 30f,   // %
+    val ecTime: Float = 300f, // ms
+    val ecFb: Float = 35f     // %
+)
+
 data class EqState(
     val power: Boolean = false,
     val mode: EqMode = EqMode.CASCADE,
@@ -43,7 +54,12 @@ data class EqState(
     val gain: Float = 0f,     // dB, output stage
     val volume: Float = 100f, // %
     val balance: Float = 0f,  // -100 (L) .. +100 (R)
-    val comp: Comp = Comp()
+    val comp: Comp = Comp(),
+    val fx: Fx = Fx(),
+    val sendL: List<Boolean> = List(5) { true }, // per-knob FX send, channel L
+    val sendR: List<Boolean> = List(5) { true },
+    val fxOn: Boolean = false,                   // wet capture running (not persisted)
+    val fxPkg: String = "com.google.android.youtube"
 )
 
 fun defaultBands(): List<Band> = List(24) { i ->
