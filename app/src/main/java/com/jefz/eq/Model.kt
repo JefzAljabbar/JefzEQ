@@ -22,7 +22,8 @@ data class Band(
     val gain: Float = 0f,
     val q: Float = 1f,
     val on: Boolean = true,
-    val comp: Comp = Comp()
+    val comp: Comp = Comp(),
+    val cal: Boolean = false   // created by auto calibration
 )
 
 data class Comp(
@@ -48,6 +49,7 @@ data class Fx(
 data class EqState(
     val power: Boolean = false,
     val mode: EqMode = EqMode.CASCADE,
+    val bandsAuto: Boolean = false, // auto order: groups L, R, L+R, each sorted by frequency
     val bands: List<Band> = defaultBands(),
     val knobsL: List<Float> = List(5) { 0f }, // -100..+100 %
     val knobsR: List<Float> = List(5) { 0f },

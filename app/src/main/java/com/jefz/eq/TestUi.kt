@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -26,12 +28,45 @@ private fun fmtHz(f: Float) = if (f >= 1000f) "%.3f kHz".format(f / 1000f) else 
 private fun setFreq(f: Float) { Gen.freq = f.coerceIn(0f, 25000f) }
 
 @Composable
-fun TestTab() {
+fun TestTab(s: EqState, onRtaToggle: (Boolean) -> Unit) {
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+        item {
+            Section("Kalibrasi Otomatis") {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Calib.Src.values().forEach { c ->
+                        FilterChip(
+                            selected = Calib.src == c,
+                            onClick = { if (!Calib.running) Calib.src = c },
+                            label = { Text(c.label) }
+                        )
+                    }
+                }
+                Text(
+                    "Membandingkan RTA out (mikrofon) dengan RTA in per 1/3 oktaf, lalu menambah Band Peaking otomatis " +
+                        "(bertanda \"kalibrasi\") agar out mengikuti in. Frequency yang Tone-nya -100% pada suatu channel " +
+                        "tidak dipakai untuk channel itu.\n" +
+                        "• Pink Noise: L dan R diukur terpisah, target spektrum rata.\n" +
+                        "• Internal: dibanding audio app yang di-capture (nyalakan capture di tab FX dan putar musik).\n" +
+                        "EQ harus ON, mode Cascade, ruangan sepi, mic dekat speaker. Respons mic HP ikut terukur.",
+                    color = Color(0xFF8A94A3), fontSize = 11.sp
+                )
+                Text(Calib.status, color = Color.White, fontSize = 12.sp)
+                if (Calib.running) LinearProgressIndicator(progress = { Calib.progress }, modifier = Modifier.fillMaxWidth())
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (!Calib.running) Button(onClick = { Calib.start { onRtaToggle(true) } }) { Text("Mulai Kalibrasi") }
+                    else Button(onClick = { Calib.stop() }) { Text("Batalkan") }
+                    val n = s.bands.count { it.cal }
+                    OutlinedButton(
+                        enabled = n > 0 && !Calib.running,
+                        onClick = { EqRepo.update { cur -> cur.copy(bands = cur.bands.filter { !it.cal }) } }
+                    ) { Text("Hapus hasil ($n)") }
+                }
+            }
+        }
         item {
             Section("Output", onReset = { Gen.resetOutput() }) {
                 LSlider("Level", Gen.levelDb, -60f..-6f, if (Gen.levelDb <= -60f) "Off" else "%.0f dBFS".format(Gen.levelDb)) { Gen.levelDb = it }

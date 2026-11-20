@@ -1,4 +1,4 @@
-# JefzEQ v0.8
+# JefzEQ v0.9
 
 Parametric stereo EQ (L/R terpisah), tone knobs, compressor, reverb/echo, RTA, generator tes.
 
@@ -38,3 +38,10 @@ Rekam audio (RTA + capture internal), notifikasi, layanan foreground, capture la
 - Mode Cascade tidak lagi dibatasi 24 dB: gain tiap band dijumlahkan (mis. +5 dB + +5 dB di 1 kHz = +10 dB).
 - RTA: sumbu EQ otomatis melebar sampai +-30 dB; garis merah putus-putus "CLIP +20" dan kurva memerah di atas +20 dB.
 - Nama preset aktif tampil di header aplikasi.
+
+## Baru di v0.9
+- Locker 🔒 di tiap fitur (kartu/section dan tiap Band) + Locker master 🔒 di sebelah kiri chip RTA. Terkunci = tidak bisa tersentuh, tapi layar tetap bisa di-scroll. Status kunci tersimpan.
+- Slider Gain tiap Band berwarna sesuai garis channel di RTA (L kuning, R magenta, L+R putih).
+- Susunan band: tombol Naik/Turun per band (jadi Manual) dan "Susun otomatis" (grup L, R, L+R, urut Frequency).
+- Tab Test: Kalibrasi Otomatis (Pink Noise L/R terpisah, atau banding dengan RTA in). Band hasil kalibrasi bertanda "kalibrasi" dan bisa dihapus sekaligus.
+- Password tidak diminta lagi saat update (selama kunci tanda tangan sama).

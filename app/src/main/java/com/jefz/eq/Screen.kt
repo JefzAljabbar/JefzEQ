@@ -36,6 +36,8 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import kotlinx.coroutines.delay
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -91,6 +93,11 @@ fun EqScreen(
                 Text("JefzEQ", fontSize = 22.sp, color = CYAN)
                 Text("Preset: ${presetLabel(state)}", fontSize = 11.sp, color = Color(0xFF8A94A3), maxLines = 1)
             }
+            FilterChip(
+                selected = Locks.master, onClick = { Locks.toggleMaster() },
+                label = { Text(if (Locks.master) "🔒" else "🔓") }
+            )
+            Spacer(Modifier.width(8.dp))
             FilterChip(selected = Rta.on, onClick = { onRtaToggle(!Rta.on) }, label = { Text("RTA") })
             Spacer(Modifier.width(8.dp))
             Switch(checked = state.power, onCheckedChange = { p -> EqRepo.update { it.copy(power = p) } })
@@ -103,7 +110,7 @@ fun EqScreen(
                 2 -> FxTab(state, onFxToggle)
                 3 -> MasterTab(state)
                 4 -> RtaTab(state, onFxToggle, onRtaToggle)
-                5 -> TestTab()
+                5 -> TestTab(state, onRtaToggle)
                 else -> PresetTab(state, onExport, onImport)
             }
         }
@@ -129,35 +136,88 @@ private fun BottomTabs(selected: Int, onSelect: (Int) -> Unit) {
     }
 }
 
+private fun autoSort(l: List<Band>): List<Band> =
+    l.sortedWith(compareBy<Band>({ when (it.chan) { Chan.L -> 0; Chan.R -> 1; Chan.LR -> 2 } }, { it.freq }))
+
+private fun chanTitle(c: Chan) = when (c) { Chan.L -> "Channel L"; Chan.R -> "Channel R"; Chan.LR -> "Channel L+R" }
+
+/** Manual move: switches the order mode to Manual. */
+private fun moveBand(id: Long, d: Int) = EqRepo.update { s ->
+    val l = s.bands.toMutableList()
+    val i = l.indexOfFirst { it.id == id }
+    val j = i + d
+    if (i < 0 || j < 0 || j >= l.size) s
+    else { java.util.Collections.swap(l, i, j); s.copy(bands = l, bandsAuto = false) }
+}
+
 @Composable
 fun BandsTab(state: EqState) {
     var confirm by remember { mutableStateOf(false) }
+    // Auto order: re-sort shortly after the user stops changing freq / channel (so cards don't jump under the finger).
+    val sig = state.bands.map { Triple(it.id, it.chan, it.freq) }
+    LaunchedEffect(sig, state.bandsAuto) {
+        if (state.bandsAuto) {
+            delay(700)
+            EqRepo.update { s ->
+                if (!s.bandsAuto) s
+                else {
+                    val n = autoSort(s.bands)
+                    if (n.map { it.id } == s.bands.map { it.id }) s else s.copy(bands = n)
+                }
+            }
+        }
+    }
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                EqMode.values().forEach { m ->
+            Section("Mode & Susunan") {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    EqMode.values().forEach { m ->
+                        FilterChip(
+                            selected = state.mode == m,
+                            onClick = { EqRepo.update { it.copy(mode = m) } },
+                            label = { Text(m.label) }
+                        )
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     FilterChip(
-                        selected = state.mode == m,
-                        onClick = { EqRepo.update { it.copy(mode = m) } },
-                        label = { Text(m.label) }
+                        selected = state.bandsAuto,
+                        onClick = {
+                            EqRepo.update { s ->
+                                if (s.bandsAuto) s.copy(bandsAuto = false)
+                                else s.copy(bandsAuto = true, bands = autoSort(s.bands))
+                            }
+                        },
+                        label = { Text("Susun otomatis") }
                     )
+                    Spacer(Modifier.weight(1f))
+                    TextButton(onClick = { confirm = true }) {
+                        Text("Reset Bands", fontSize = 12.sp, color = Color(0xFF8A94A3))
+                    }
                 }
-                Spacer(Modifier.weight(1f))
-                TextButton(onClick = { confirm = true }) {
-                    Text("Reset Bands", fontSize = 12.sp, color = Color(0xFF8A94A3))
-                }
+                Text(
+                    "Otomatis: dikelompokkan Channel L, R, lalu L+R, tiap grup urut dari Frequency terkecil. " +
+                        "Kalau Anda memindah band dengan ▲ / ▼, susunan otomatis berubah ke Manual.",
+                    color = Color(0xFF8A94A3), fontSize = 11.sp
+                )
             }
         }
         if (state.bands.isEmpty()) {
             item { Text("Belum ada band. Tekan + Tambah Band.", color = Color(0xFF8A94A3), fontSize = 13.sp) }
         }
-        itemsIndexed(state.bands, key = { _, b -> b.id }) { i, b -> BandCard(i + 1, b) }
+        state.bands.forEachIndexed { i, b ->
+            if (state.bandsAuto && (i == 0 || state.bands[i - 1].chan != b.chan)) {
+                item(key = "h_$i") { Text(chanTitle(b.chan), color = Color(0xFF8A94A3), fontSize = 12.sp) }
+            }
+            item(key = b.id) { BandCard(i + 1, b, i > 0, i < state.bands.size - 1) }
+        }
         item {
             Button(
+                enabled = !Locks.isLocked("Mode & Susunan"),
                 onClick = {
                     EqRepo.update { s ->
                         val id = (s.bands.maxOfOrNull { it.id } ?: -1L) + 1
@@ -176,7 +236,9 @@ fun BandsTab(state: EqState) {
             text = { Text("Semua band dihapus dan mode kembali ke Cascade.") },
             confirmButton = {
                 TextButton(onClick = {
-                    EqRepo.update { it.copy(bands = emptyList(), mode = EqMode.CASCADE) }
+                    if (!Locks.isLocked("Mode & Susunan")) {
+                        EqRepo.update { it.copy(bands = emptyList(), mode = EqMode.CASCADE) }
+                    }
                     confirm = false
                 }) { Text("Reset") }
             },
@@ -186,63 +248,83 @@ fun BandsTab(state: EqState) {
 }
 
 @Composable
-fun BandCard(index: Int, b: Band) {
+fun BandCard(index: Int, b: Band, canUp: Boolean, canDown: Boolean) {
+    val key = "band:${b.id}"
+    val locked = Locks.isLocked(key)
+    // Slider color follows the channel line color in the RTA graph (L yellow, R magenta, L+R white).
+    val col = when (b.chan) { Chan.L -> EQL; Chan.R -> EQR; Chan.LR -> Color.White }
     Card(colors = CardDefaults.cardColors(containerColor = CARD), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Band $index", color = Color.White, modifier = Modifier.weight(1f))
-                TextButton(onClick = {
-                    update(b.copy(type = BandType.PEAK, chan = Chan.LR, freq = 1000f, gain = 0f, q = 1f, on = true, comp = Comp()))
-                }) { Text("Reset", fontSize = 12.sp, color = Color(0xFF8A94A3)) }
-                Switch(checked = b.on, onCheckedChange = { update(b.copy(on = it)) })
-                TextButton(onClick = {
+                Text(
+                    if (b.cal) "Band $index • kalibrasi" else "Band $index",
+                    color = Color.White, modifier = Modifier.weight(1f)
+                )
+                LockButton(key)
+                Switch(checked = b.on, onCheckedChange = { update(b.copy(on = it)) }, enabled = !locked)
+                TextButton(enabled = !locked, onClick = {
                     EqRepo.update { s -> s.copy(bands = s.bands.filter { it.id != b.id }) }
                 }) { Text("✕", color = Color(0xFFFF5252)) }
             }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                var open by remember { mutableStateOf(false) }
-                Box {
-                    OutlinedButton(onClick = { open = true }) { Text(b.type.label, fontSize = 12.sp) }
-                    DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-                        BandType.values().forEach { t ->
-                            DropdownMenuItem(text = { Text(t.label) }, onClick = { update(b.copy(type = t)); open = false })
+            LockedBox(locked, gap = 6.dp) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(enabled = canUp, onClick = { moveBand(b.id, -1) }) { Text("▲ Naik", fontSize = 12.sp) }
+                    TextButton(enabled = canDown, onClick = { moveBand(b.id, 1) }) { Text("▼ Turun", fontSize = 12.sp) }
+                    Spacer(Modifier.weight(1f))
+                    TextButton(onClick = {
+                        update(b.copy(type = BandType.PEAK, chan = Chan.LR, freq = 1000f, gain = 0f, q = 1f, on = true, comp = Comp()))
+                    }) { Text("Reset", fontSize = 12.sp, color = Color(0xFF8A94A3)) }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    var open by remember { mutableStateOf(false) }
+                    Box {
+                        OutlinedButton(onClick = { open = true }) { Text(b.type.label, fontSize = 12.sp) }
+                        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                            BandType.values().forEach { t ->
+                                DropdownMenuItem(text = { Text(t.label) }, onClick = { update(b.copy(type = t)); open = false })
+                            }
                         }
                     }
+                    Chan.values().forEach { c ->
+                        FilterChip(selected = b.chan == c, onClick = { update(b.copy(chan = c)) }, label = { Text(c.label) })
+                    }
                 }
-                Chan.values().forEach { c ->
-                    FilterChip(selected = b.chan == c, onClick = { update(b.copy(chan = c)) }, label = { Text(c.label) })
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Gain %+.1f dB".format(b.gain), color = col, fontSize = 12.sp)
+                        Slider(
+                            value = b.gain, onValueChange = { update(b.copy(gain = it)) }, valueRange = -20f..20f,
+                            colors = SliderDefaults.colors(
+                                thumbColor = col, activeTrackColor = col, inactiveTrackColor = col.copy(alpha = 0.25f)
+                            )
+                        )
+                    }
+                    Knob(b.freq, 20f, 20000f, "Freq", fmtFreq(b.freq), log = true) { update(b.copy(freq = it)) }
+                    Knob(b.q, 0.1f, 10f, "Q", "%.2f".format(b.q), log = true) { update(b.copy(q = it)) }
                 }
-            }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Column(Modifier.weight(1f)) {
-                    Text("Gain %+.1f dB".format(b.gain), color = Color.White, fontSize = 12.sp)
-                    Slider(value = b.gain, onValueChange = { update(b.copy(gain = it)) }, valueRange = -20f..20f)
+                var cOpen by remember { mutableStateOf(false) }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = b.comp.on,
+                        onClick = { update(b.copy(comp = b.comp.copy(on = !b.comp.on))) },
+                        label = { Text("Compressor") }
+                    )
+                    TextButton(onClick = { cOpen = !cOpen }) { Text(if (cOpen) "Sembunyikan ▴" else "Atur ▾", fontSize = 12.sp) }
                 }
-                Knob(b.freq, 20f, 20000f, "Freq", fmtFreq(b.freq), log = true) { update(b.copy(freq = it)) }
-                Knob(b.q, 0.1f, 10f, "Q", "%.2f".format(b.q), log = true) { update(b.copy(q = it)) }
-            }
-            var cOpen by remember { mutableStateOf(false) }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = b.comp.on,
-                    onClick = { update(b.copy(comp = b.comp.copy(on = !b.comp.on))) },
-                    label = { Text("Compressor") }
-                )
-                TextButton(onClick = { cOpen = !cOpen }) { Text(if (cOpen) "Sembunyikan ▴" else "Atur ▾", fontSize = 12.sp) }
-            }
-            if (cOpen) {
-                val c = b.comp
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    Knob(c.threshold, -60f, 0f, "Thresh", "%.0f dB".format(c.threshold), reset = -24f) { v -> update(b.copy(comp = c.copy(threshold = v))) }
-                    Knob(c.ratio, 1f, 20f, "Ratio", "%.1f:1".format(c.ratio), reset = 3f) { v -> update(b.copy(comp = c.copy(ratio = v))) }
-                    Knob(c.attack, 1f, 200f, "Attack", "%.0f ms".format(c.attack), log = true, reset = 10f) { v -> update(b.copy(comp = c.copy(attack = v))) }
-                    Knob(c.release, 10f, 1000f, "Release", "%.0f ms".format(c.release), log = true, reset = 120f) { v -> update(b.copy(comp = c.copy(release = v))) }
-                    Knob(c.makeup, 0f, 24f, "Makeup", "%.1f dB".format(c.makeup), reset = 0f) { v -> update(b.copy(comp = c.copy(makeup = v))) }
+                if (cOpen) {
+                    val c = b.comp
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        Knob(c.threshold, -60f, 0f, "Thresh", "%.0f dB".format(c.threshold), reset = -24f) { v -> update(b.copy(comp = c.copy(threshold = v))) }
+                        Knob(c.ratio, 1f, 20f, "Ratio", "%.1f:1".format(c.ratio), reset = 3f) { v -> update(b.copy(comp = c.copy(ratio = v))) }
+                        Knob(c.attack, 1f, 200f, "Attack", "%.0f ms".format(c.attack), log = true, reset = 10f) { v -> update(b.copy(comp = c.copy(attack = v))) }
+                        Knob(c.release, 10f, 1000f, "Release", "%.0f ms".format(c.release), log = true, reset = 120f) { v -> update(b.copy(comp = c.copy(release = v))) }
+                        Knob(c.makeup, 0f, 24f, "Makeup", "%.1f dB".format(c.makeup), reset = 0f) { v -> update(b.copy(comp = c.copy(makeup = v))) }
+                    }
+                    Text(
+                        "Berlaku pada rentang frekuensi band ini (setelah EQ). Maks 8 band compressor aktif per channel.",
+                        color = Color(0xFF8A94A3), fontSize = 11.sp
+                    )
                 }
-                Text(
-                    "Berlaku pada rentang frekuensi band ini (setelah EQ). Maks 8 band compressor aktif per channel.",
-                    color = Color(0xFF8A94A3), fontSize = 11.sp
-                )
             }
         }
     }
@@ -250,15 +332,17 @@ fun BandCard(index: Int, b: Band) {
 
 @Composable
 fun Section(title: String, onReset: (() -> Unit)? = null, content: @Composable () -> Unit) {
+    val locked = Locks.isLocked(title)
     Card(colors = CardDefaults.cardColors(containerColor = CARD), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(title, color = CYAN, fontSize = 14.sp, modifier = Modifier.weight(1f))
                 if (onReset != null) {
-                    TextButton(onClick = onReset) { Text("Reset", fontSize = 12.sp, color = Color(0xFF8A94A3)) }
+                    TextButton(onClick = onReset, enabled = !locked) { Text("Reset", fontSize = 12.sp, color = Color(0xFF8A94A3)) }
                 }
+                LockButton(title)
             }
-            content()
+            LockedBox(locked) { content() }
         }
     }
 }

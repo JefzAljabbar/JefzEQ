@@ -43,8 +43,8 @@ import androidx.compose.ui.unit.sp
 private val BG = Color(0xFF181D25)
 private val MIC = Color(0xFF00E5FF)
 private val INT = Color(0xFF69F0AE)
-private val EQL = Color(0xFFFFEB3B)
-private val EQR = Color(0xFFE040FB)
+val EQL = Color(0xFFFFEB3B)
+val EQR = Color(0xFFE040FB)
 
 /** Spectroid-style RTA (mic = output, internal = input) with EQ curve overlay. */
 @Composable
@@ -184,34 +184,32 @@ fun RtaTab(s: EqState, onFxToggle: (Boolean) -> Unit, onRtaToggle: (Boolean) -> 
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         item {
-            Card(colors = CardDefaults.cardColors(containerColor = BG), modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("RTA (mikrofon)", color = Color.White, modifier = Modifier.weight(1f))
-                        Switch(checked = Rta.on, onCheckedChange = onRtaToggle)
+            Section("RTA (mikrofon)") {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("On / Off", color = Color.White, modifier = Modifier.weight(1f))
+                    Switch(checked = Rta.on, onCheckedChange = onRtaToggle)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(Rta.showMic, { Rta.showMic = !Rta.showMic }, { Text("Mic (output)") })
+                    FilterChip(Rta.showInt, { Rta.showInt = !Rta.showInt }, { Text("Internal (input)") })
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(Rta.showCurve, { Rta.showCurve = !Rta.showCurve }, { Text("EQ") })
+                    FilterChip(Rta.peakHold, { Rta.peakHold = !Rta.peakHold }, { Text("Peak") })
+                    FilterChip(Rta.log, { Rta.log = !Rta.log }, { Text(if (Rta.log) "Log" else "Linear") })
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    intArrayOf(2048, 4096, 8192).forEach { n ->
+                        FilterChip(Rta.fft == n, { Rta.fft = n }, { Text("FFT $n") })
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(Rta.showMic, { Rta.showMic = !Rta.showMic }, { Text("Mic (output)") })
-                        FilterChip(Rta.showInt, { Rta.showInt = !Rta.showInt }, { Text("Internal (input)") })
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(Rta.showCurve, { Rta.showCurve = !Rta.showCurve }, { Text("EQ") })
-                        FilterChip(Rta.peakHold, { Rta.peakHold = !Rta.peakHold }, { Text("Peak") })
-                        FilterChip(Rta.log, { Rta.log = !Rta.log }, { Text(if (Rta.log) "Log" else "Linear") })
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        intArrayOf(2048, 4096, 8192).forEach { n ->
-                            FilterChip(Rta.fft == n, { Rta.fft = n }, { Text("FFT $n") })
-                        }
-                    }
-                    OutlinedButton(onClick = { Rta.resetView() }) { Text("Reset tampilan") }
-                    if (!s.fxOn) {
-                        Text(
-                            "Grafik Internal (input) butuh capture app. Aktifkan dulu agar bisa dibandingkan dengan Mic (output).",
-                            color = Color(0xFF8A94A3), fontSize = 11.sp
-                        )
-                        Button(onClick = { onFxToggle(true) }) { Text("Aktifkan capture internal") }
-                    }
+                }
+                OutlinedButton(onClick = { Rta.resetView() }) { Text("Reset tampilan") }
+                if (!s.fxOn) {
+                    Text(
+                        "Grafik Internal (input) butuh capture app. Aktifkan dulu agar bisa dibandingkan dengan Mic (output).",
+                        color = Color(0xFF8A94A3), fontSize = 11.sp
+                    )
+                    Button(onClick = { onFxToggle(true) }) { Text("Aktifkan capture internal") }
                 }
             }
         }

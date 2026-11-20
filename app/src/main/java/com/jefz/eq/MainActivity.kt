@@ -97,6 +97,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStop() {
+        Calib.stop()
         Gen.stop()
         Rta.stop()
         super.onStop()
@@ -124,6 +125,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         EqRepo.init(this)
         PresetStore.init(this)
+        Locks.init(this)
         Thread { Apps.load(packageManager) }.start()
         if (!EqService.fxRunning) EqRepo.update { it.copy(fxOn = false) }
         if (Build.VERSION.SDK_INT >= 33 &&

@@ -31,10 +31,10 @@ object EqRepo {
         s.bands.forEach {
             arr.put(JSONObject().put("id", it.id).put("type", it.type.name).put("chan", it.chan.name)
                 .put("freq", it.freq.toDouble()).put("gain", it.gain.toDouble())
-                .put("q", it.q.toDouble()).put("on", it.on).put("c", compJson(it.comp)))
+                .put("q", it.q.toDouble()).put("on", it.on).put("c", compJson(it.comp)).put("cal", it.cal))
         }
         val c = s.comp
-        return JSONObject().put("power", s.power).put("mode", s.mode.name).put("bands", arr)
+        return JSONObject().put("power", s.power).put("mode", s.mode.name).put("auto", s.bandsAuto).put("bands", arr)
             .put("kl", JSONArray(s.knobsL.map { it.toDouble() }))
             .put("kr", JSONArray(s.knobsR.map { it.toDouble() }))
             .put("pre", s.preamp.toDouble()).put("gain", s.gain.toDouble())
@@ -93,7 +93,8 @@ object EqRepo {
                 gain = b.getDouble("gain").toFloat(),
                 q = b.getDouble("q").toFloat(),
                 on = b.getBoolean("on"),
-                comp = compParse(b.optJSONObject("c"))
+                comp = compParse(b.optJSONObject("c")),
+                cal = b.optBoolean("cal", false)
             )
         }
         val d = Comp()
@@ -122,6 +123,7 @@ object EqRepo {
             power = o.getBoolean("power"),
             mode = enumOr(o.getString("mode"), EqMode.CASCADE),
             bands = bands,
+            bandsAuto = o.optBoolean("auto", false),
             knobsL = floats(o.optJSONArray("kl")),
             knobsR = floats(o.optJSONArray("kr")),
             preamp = o.optDouble("pre", 0.0).toFloat(),

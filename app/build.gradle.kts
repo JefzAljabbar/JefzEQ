@@ -11,8 +11,8 @@ android {
         applicationId = "com.jefz.eq"
         minSdk = 28
         targetSdk = 34
-        versionCode = 8
-        versionName = "0.8"
+        versionCode = 9
+        versionName = "0.9"
     }
     // Fixed signing key (app/jefz.keystore) so every new build installs OVER the old one without uninstalling.
     signingConfigs {

@@ -65,10 +65,9 @@ fun PresetTab(s: EqState, onExport: (String) -> Unit, onImport: () -> Unit) {
                 )
             }
         }
-        if (PresetStore.names.isEmpty()) {
-            item { Text("Belum ada preset.", color = Color(0xFF8A94A3), fontSize = 13.sp) }
-        }
-        items(PresetStore.names, key = { it }) { n ->
+        item { Section("Preset Tersimpan") {
+            if (PresetStore.names.isEmpty()) Text("Belum ada preset.", color = Color(0xFF8A94A3), fontSize = 13.sp)
+            PresetStore.names.forEach { n ->
             Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF181D25)), modifier = Modifier.fillMaxWidth()) {
                 Row(Modifier.padding(start = 12.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(n, color = Color.White, modifier = Modifier.weight(1f))
@@ -91,7 +90,8 @@ fun PresetTab(s: EqState, onExport: (String) -> Unit, onImport: () -> Unit) {
                     }) { Text("✕", color = Color(0xFFFF5252)) }
                 }
             }
-        }
+            }
+        } }
         item {
             Section("Reset Semua") {
                 Text(
